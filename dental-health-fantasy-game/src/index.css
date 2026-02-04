@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* Full screen mobile game styles */
+:root {
+  --safe-area-inset-top: env(safe-area-inset-top, 0px);
+  --safe-area-inset-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-inset-left: env(safe-area-inset-left, 0px);
+  --safe-area-inset-right: env(safe-area-inset-right, 0px);
+}
+
+html {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  touch-action: manipulation;
+  background: #1a1a2e;
+}
+
+body {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  inset: 0;
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Mobile viewport fix for iOS Safari */
+@supports (-webkit-touch-callout: none) {
+  html, body, #root {
+    height: -webkit-fill-available;
+    min-height: -webkit-fill-available;
+  }
+}
+
+/* Game container - THE KEY FIX */
+.game-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-area-inset-top);
+  padding-bottom: var(--safe-area-inset-bottom);
+  padding-left: var(--safe-area-inset-left);
+  padding-right: var(--safe-area-inset-right);
+}
+
+/* Game screen that takes full height */
+.game-screen {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Hide scrollbars everywhere */
+::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+/* Ensure buttons work on touch */
+button, [role="button"] {
+  touch-action: manipulation;
+  cursor: pointer;
+}
+
+/* Safe area padding utilities */
+.safe-top {
+  padding-top: max(0.5rem, var(--safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0.5rem, var(--safe-area-inset-bottom));
+}
+
+.safe-x {
+  padding-left: max(0.5rem, var(--safe-area-inset-left));
+  padding-right: max(0.5rem, var(--safe-area-inset-right));
+}

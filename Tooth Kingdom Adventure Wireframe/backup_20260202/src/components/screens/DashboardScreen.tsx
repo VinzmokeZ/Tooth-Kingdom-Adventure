@@ -1,0 +1,364 @@
+import React from 'react';
+import { ScreenProps } from './types';
+import { Calendar, Trophy, BookOpen, TrendingUp, Flame, Zap, Award, Star, ChevronRight, Bell, Sparkles as SparklesIcon, Bot, Brain, Target, Menu, Gift } from 'lucide-react';
+import { UserAvatar } from '../common/UserAvatar';
+import logo from '../../assets/5b0695099dfd67c35f14fc4f047da4df5ed6aa0e.png';
+
+export function DashboardScreen({ navigateTo, userData }: ScreenProps) {
+  return (
+    <div className="h-full bg-gradient-to-b from-purple-50 to-white flex flex-col overflow-y-auto">
+      {/* Header */}
+      <div
+        className="sticky top-0 bg-gradient-to-br from-purple-500 to-purple-600 text-white px-5 pt-5 pb-6 z-10"
+        style={{
+          boxShadow: '0 6px 20px rgba(124, 58, 237, 0.25)',
+        }}
+      >
+        <div className="flex justify-between items-center mb-5">
+          <button
+            onClick={() => navigateTo('settings')}
+            className="p-2 -ml-2 hover:bg-white/10 rounded-xl transition-all"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+          <h1 className="font-extrabold text-xl">Dashboard</h1>
+          <button
+            onClick={() => navigateTo('notifications')}
+            className="relative p-2 -mr-2 hover:bg-white/10 rounded-xl transition-all"
+          >
+            <Bell className="w-6 h-6" />
+            <div
+              className="absolute top-1 right-1 w-5 h-5 bg-pink-500 rounded-full text-xs flex items-center justify-center font-bold text-white"
+              style={{
+                boxShadow: '0 2px 6px rgba(236, 72, 153, 0.5)',
+              }}
+            >3</div>
+          </button>
+        </div>
+
+        {/* User profile card */}
+        <div
+          className="bg-white/20 backdrop-blur-md rounded-2xl p-4 border border-white/30"
+          style={{
+            boxShadow: '0 6px 20px rgba(0,0,0,0.1)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex-shrink-0">
+              <UserAvatar
+                characterId={userData.selectedCharacter}
+                showBackground={false}
+                className="w-14 h-14 bg-purple-50 rounded-full ring-4 ring-white/40"
+              />
+            </div>
+            <div className="flex-1">
+              <h2 className="font-bold text-lg">Hey, Champion! 👋</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <div
+                  className="bg-white/30 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-bold"
+                >
+                  Level {userData.level}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Star className="w-4 h-4 fill-yellow-300 text-yellow-300" />
+                  <span className="font-bold text-sm">{userData.totalStars}</span>
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={() => navigateTo('profile')}
+              className="bg-white text-purple-600 px-4 py-2 rounded-xl text-sm font-bold hover:scale-105 transition-all"
+              style={{
+                boxShadow: '0 4px 12px rgba(255,255,255,0.3)',
+              }}
+            >
+              Profile
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 px-5 py-6 space-y-5">
+        {/* Streak card */}
+        <div
+          className="bg-gradient-to-br from-orange-400 to-pink-500 rounded-3xl p-5 text-white"
+          style={{
+            boxShadow: '0 8px 28px rgba(236, 72, 153, 0.3)',
+          }}
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <Flame className="w-6 h-6 fill-white" />
+                <h3 className="font-bold text-lg">Current Streak</h3>
+              </div>
+              <p className="text-white/80 text-sm">Keep it going!</p>
+            </div>
+            <button
+              onClick={() => navigateTo('streak')}
+              className="bg-white/20 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-medium"
+            >
+              Details
+            </button>
+          </div>
+          <div className="flex items-center gap-5">
+            <div className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center border-4 border-white/40">
+              <span className="text-3xl font-bold">{userData.currentStreak}</span>
+            </div>
+            <div className="flex-1">
+              <div className="text-sm mb-2">
+                <span className="font-bold text-2xl">{userData.currentStreak}</span> days in a row!
+              </div>
+              <div className="h-3 bg-white/20 backdrop-blur-sm rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-white rounded-full transition-all duration-500"
+                  style={{ width: `${(userData.currentStreak / 14) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-white/80 mt-1">Next milestone: 14 days</p>
+            </div>
+          </div>
+        </div>
+
+        {/* AI Personalized Tip */}
+        <div className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-3xl shadow-2xl p-1">
+          <div className="bg-white rounded-[22px] p-5">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+                <Bot className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-base font-extrabold text-gray-900">AI Daily Tip</h3>
+                  <span className="px-2 py-0.5 bg-gradient-to-r from-green-400 to-emerald-400 text-white text-xs font-bold rounded-full">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 leading-relaxed">
+                  Great job on your {userData.currentStreak}-day streak! Our AI noticed you brush best in the morning. Try setting a reminder for evening brushing to double your progress! 🌟
+                </p>
+              </div>
+            </div>
+            <button className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm">
+              🤖 Get More AI Tips
+            </button>
+          </div>
+        </div>
+
+        {/* Learning Resources Banner */}
+        <button
+          onClick={() => navigateTo('learning-resources')}
+          className="w-full bg-gradient-to-r from-purple-600 to-pink-500 rounded-3xl p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border-2 border-white/40">
+              <BookOpen className="w-8 h-8 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-extrabold text-lg">Learning Resources</h3>
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <p className="text-sm text-white/90">Videos, PDFs & interactive lessons for everyone!</p>
+            </div>
+            <div className="text-2xl">📚</div>
+          </div>
+        </button>
+
+        {/* Learning Academy Banner */}
+        <button
+          onClick={() => navigateTo('learning-academy')}
+          className="w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 rounded-3xl p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95 relative overflow-hidden"
+        >
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-10 rounded-full -ml-12 -mb-12"></div>
+
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border-2 border-white/40">
+              <Award className="w-8 h-8 text-white" />
+            </div>
+            <div className="flex-1 text-left">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-extrabold text-lg">Learning Academy</h3>
+                <span className="px-2 py-1 bg-white/30 backdrop-blur-sm text-white text-xs font-bold rounded-full">
+                  NEW
+                </span>
+              </div>
+              <p className="text-sm text-white/90">Complete courses with AI tutor & offline access!</p>
+            </div>
+            <div className="text-2xl">🎓</div>
+          </div>
+        </button>
+
+        {/* Quick actions */}
+        <div>
+          <h3 className="font-bold text-gray-900 text-lg mb-3">Quick Actions</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={() => navigateTo('chapters')}
+              className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl mb-3 flex items-center justify-center shadow-md">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <h4 className="font-bold text-gray-900 text-sm mb-1">Chapters</h4>
+              <p className="text-xs text-gray-500">{userData.completedChapters}/5 completed</p>
+            </button>
+
+            <button
+              onClick={() => navigateTo('brushing-lesson')}
+              className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl mb-3 flex items-center justify-center shadow-md">
+                <Sparkles className="w-6 h-6 text-white" />
+              </div>
+              <h4 className="font-bold text-gray-900 text-sm mb-1">Daily Lesson</h4>
+              <p className="text-xs text-gray-500">Start brushing</p>
+            </button>
+
+            <button
+              onClick={() => navigateTo('rewards')}
+              className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-rose-500 rounded-xl mb-3 flex items-center justify-center shadow-md">
+                <Gift className="w-6 h-6 text-white" />
+              </div>
+              <h4 className="font-bold text-gray-900 text-sm mb-1">Rewards</h4>
+              <p className="text-xs text-gray-500">{userData.unlockedRewards.length} unlocked</p>
+            </button>
+
+            <button
+              onClick={() => navigateTo('calendar')}
+              className="bg-white rounded-2xl p-4 shadow-md hover:shadow-lg transition-all active:scale-95"
+            >
+              <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl mb-3 flex items-center justify-center shadow-md">
+                <Calendar className="w-6 h-6 text-white" />
+              </div>
+              <h4 className="font-bold text-gray-900 text-sm mb-1">Calendar</h4>
+              <p className="text-xs text-gray-500">{userData.totalDays} days total</p>
+            </button>
+          </div>
+        </div>
+
+        {/* Progress overview */}
+        <div className="bg-white rounded-3xl p-5 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-900">Today's Progress</h3>
+            <button
+              onClick={() => navigateTo('progress')}
+              className="text-purple-600 text-sm font-medium"
+            >
+              View All
+            </button>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-purple-100 to-purple-200 rounded-xl flex items-center justify-center">
+                <Trophy className="w-5 h-5 text-purple-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-700">Morning Brushing</span>
+                  <span className="text-xs font-bold text-green-600">✓ Done</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-green-400 to-emerald-500 w-full"></div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl flex items-center justify-center">
+                <Star className="w-5 h-5 text-blue-600" />
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium text-gray-700">Evening Brushing</span>
+                  <span className="text-xs font-medium text-gray-400">Pending</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-gray-300 to-gray-300 w-0"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Recent achievements */}
+        <div className="bg-white rounded-3xl p-5 shadow-md">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-900">Recent Achievements</h3>
+            <button
+              onClick={() => navigateTo('achievements')}
+              className="text-purple-600 text-sm font-medium"
+            >
+              See All
+            </button>
+          </div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex-shrink-0">
+                <div className="w-16 h-16 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full mb-2 flex items-center justify-center shadow-md">
+                  <Award className="w-8 h-8 text-white" />
+                </div>
+                <p className="text-xs text-center text-gray-600 w-16">Week {i}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom navigation */}
+      <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 py-3 shadow-lg">
+        <div className="flex justify-around items-center">
+          <button className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center">
+              <Home className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xs font-medium text-purple-600">Home</span>
+          </button>
+          <button onClick={() => navigateTo('chapters')} className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center">
+              <BookOpen className="w-5 h-5 text-gray-400" />
+            </div>
+            <span className="text-xs font-medium text-gray-400">Chapters</span>
+          </button>
+          <button onClick={() => navigateTo('progress')} className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-gray-400" />
+            </div>
+            <span className="text-xs font-medium text-gray-400">Progress</span>
+          </button>
+          <button onClick={() => navigateTo('profile')} className="flex flex-col items-center gap-1">
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden">
+              <UserAvatar
+                characterId={userData.selectedCharacter}
+                showBackground={false}
+                className="w-full h-full object-cover rounded-full ring-2 ring-gray-200"
+              />
+            </div>
+            <span className="text-xs font-medium text-gray-400">Profile</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Sparkles({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M12 2l2 7h7l-5.5 4 2 7-5.5-4-5.5 4 2-7-5.5-4h7l2-7z" />
+    </svg>
+  );
+}
+
+function Home({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+      <polyline points="9 22 9 12 15 12 15 22" />
+    </svg>
+  );
+}
