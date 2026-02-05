@@ -3,19 +3,8 @@ import { ScreenProps } from './types';
 import { ArrowLeft, BookOpen, Video, FileText, Download, Play, Star, Users, Baby, GraduationCap, Search, Sparkles, Bot } from 'lucide-react';
 import logo from 'figma:asset/5b0695099dfd67c35f14fc4f047da4df5ed6aa0e.png';
 
-interface Resource {
-  id: number;
-  title: string;
-  description: string;
-  type: 'video' | 'pdf' | 'interactive';
-  category: 'kids' | 'parents' | 'teachers';
-  duration?: string;
-  pages?: number;
-  rating: number;
-  views: string;
-  thumbnail: string;
-  aiRecommended?: boolean;
-}
+import { LEARNING_RESOURCES, Resource } from '../../data/learningContent';
+import { getAIChatResponse } from '../../utils/aiMockService';
 
 export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'kids' | 'parents' | 'teachers'>('all');
@@ -23,150 +12,30 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showAIAssistant, setShowAIAssistant] = useState(false);
 
-  const resources: Resource[] = [
-    // Kids Resources
-    {
-      id: 1,
-      title: 'Brushing Basics for Heroes',
-      description: 'Learn the proper way to brush your teeth with fun animations!',
-      type: 'video',
-      category: 'kids',
-      duration: '5:30',
-      rating: 5,
-      views: '12.5K',
-      thumbnail: '🦷',
-      aiRecommended: true,
-    },
-    {
-      id: 2,
-      title: 'The Sugar Monster Story',
-      description: 'An interactive story about how sugar affects your teeth',
-      type: 'interactive',
-      category: 'kids',
-      duration: '10 min',
-      rating: 5,
-      views: '8.2K',
-      thumbnail: '👾',
-      aiRecommended: true,
-    },
-    {
-      id: 3,
-      title: 'Dental Heroes Coloring Book',
-      description: 'Print and color your favorite tooth kingdom characters!',
-      type: 'pdf',
-      category: 'kids',
-      pages: 15,
-      rating: 4,
-      views: '15.3K',
-      thumbnail: '🎨',
-    },
-    {
-      id: 4,
-      title: 'Flossing Fun Challenge',
-      description: 'Master the art of flossing with step-by-step videos',
-      type: 'video',
-      category: 'kids',
-      duration: '4:15',
-      rating: 5,
-      views: '9.7K',
-      thumbnail: '🧵',
-    },
+  // AI Chat Logic
+  const [chatInput, setChatInput] = useState('');
+  const [aiResponse, setAiResponse] = useState('');
+  const [isAiThinking, setIsAiThinking] = useState(false);
 
-    // Parents Resources
-    {
-      id: 5,
-      title: 'Age-Appropriate Oral Care Guide',
-      description: 'Complete guide for dental care from infancy to teens',
-      type: 'pdf',
-      category: 'parents',
-      pages: 24,
-      rating: 5,
-      views: '18.9K',
-      thumbnail: '📚',
-      aiRecommended: true,
-    },
-    {
-      id: 6,
-      title: 'Creating Healthy Habits',
-      description: 'Expert tips on building lasting dental hygiene routines',
-      type: 'video',
-      category: 'parents',
-      duration: '12:45',
-      rating: 5,
-      views: '14.2K',
-      thumbnail: '💡',
-    },
-    {
-      id: 7,
-      title: 'Nutrition for Strong Teeth',
-      description: 'Foods that promote dental health and what to avoid',
-      type: 'pdf',
-      category: 'parents',
-      pages: 18,
-      rating: 4,
-      views: '11.5K',
-      thumbnail: '🥗',
-    },
-    {
-      id: 8,
-      title: 'Dental Visit Preparation',
-      description: 'How to prepare your child for their first dentist visit',
-      type: 'video',
-      category: 'parents',
-      duration: '8:20',
-      rating: 5,
-      views: '16.8K',
-      thumbnail: '🏥',
-      aiRecommended: true,
-    },
+  const handleAiQuery = (query: string) => {
+    if (!query.trim()) return;
+    setChatInput(query);
+    setIsAiThinking(true);
 
-    // Teachers Resources
-    {
-      id: 9,
-      title: 'Classroom Dental Curriculum',
-      description: 'Complete lesson plans for teaching dental hygiene in schools',
-      type: 'pdf',
-      category: 'teachers',
-      pages: 45,
-      rating: 5,
-      views: '7.3K',
-      thumbnail: '📖',
-      aiRecommended: true,
-    },
-    {
-      id: 10,
-      title: 'Educational Dental Games',
-      description: 'Interactive activities and games for group learning',
-      type: 'interactive',
-      category: 'teachers',
-      duration: '30 min',
-      rating: 5,
-      views: '6.1K',
-      thumbnail: '🎮',
-    },
-    {
-      id: 11,
-      title: 'Dental Health Assembly Program',
-      description: 'Ready-to-use presentation for school assemblies',
-      type: 'video',
-      category: 'teachers',
-      duration: '25:00',
-      rating: 4,
-      views: '5.8K',
-      thumbnail: '🎬',
-    },
-    {
-      id: 12,
-      title: 'Printable Worksheets Pack',
-      description: 'Fun worksheets and activities for all grade levels',
-      type: 'pdf',
-      category: 'teachers',
-      pages: 32,
-      rating: 5,
-      views: '9.2K',
-      thumbnail: '📝',
-    },
-  ];
+    // Simulate thinking
+    setTimeout(() => {
+      const response = getAIChatResponse(query);
+      setAiResponse(response);
+      setIsAiThinking(false);
+    }, 1500);
+  };
+
+  // Helper to open resources
+  const handleResourceClick = (resource: Resource) => {
+    window.open(resource.url, '_blank');
+  };
+
+  const resources: Resource[] = LEARNING_RESOURCES;
 
   const filteredResources = resources.filter(resource => {
     const matchesCategory = selectedCategory === 'all' || resource.category === selectedCategory;
@@ -212,6 +81,9 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
       <div className="flex-1 overflow-y-auto">
         <div className="p-6 space-y-6">
           {/* AI Assistant Panel */}
+
+          return (
+          // ...
           {showAIAssistant && (
             <div className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-3xl shadow-2xl p-1 animate-slideDown">
               <div className="bg-white rounded-[22px] p-6">
@@ -227,38 +99,61 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
                       </span>
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      Hi! I'm your smart learning buddy! Ask me anything about dental health. 🤖💙
+                      {aiResponse || "Hi! I'm your smart learning buddy! Ask me anything about dental health. 🤖💙"}
                     </p>
                   </div>
                 </div>
 
                 <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-                  <p className="text-sm text-gray-700 mb-3 font-medium">💡 Popular Questions:</p>
-                  <div className="space-y-2">
-                    {[
-                      'How often should kids brush their teeth?',
-                      'What age should children start flossing?',
-                      'Best toothpaste for sensitive teeth?',
-                      'How to make brushing fun for kids?'
-                    ].map((question, index) => (
+                  {aiResponse ? (
+                    <div className="animate-fadeIn">
+                      <p className="font-bold text-gray-900 mb-2">My Answer to "{chatInput}":</p>
+                      <p className="text-gray-700">{aiResponse}</p>
                       <button
-                        key={index}
-                        className="w-full text-left px-4 py-2 bg-white rounded-xl text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-all border border-gray-200"
+                        onClick={() => { setAiResponse(''); setChatInput(''); }}
+                        className="mt-3 text-sm text-cyan-600 font-bold hover:underline"
                       >
-                        {question}
+                        Ask another question
                       </button>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-700 mb-3 font-medium">💡 Popular Questions:</p>
+                      <div className="space-y-2">
+                        {[
+                          'How often should kids brush their teeth?',
+                          'What age should children start flossing?',
+                          'Best toothpaste for sensitive teeth?',
+                          'How to make brushing fun for kids?'
+                        ].map((question, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleAiQuery(question)}
+                            className="w-full text-left px-4 py-2 bg-white rounded-xl text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 transition-all border border-gray-200"
+                          >
+                            {question}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
                   <input
                     type="text"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleAiQuery(chatInput)}
                     placeholder="Ask me anything about dental health..."
                     className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 focus:bg-white transition-all"
                   />
-                  <button className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all">
-                    Ask AI
+                  <button
+                    onClick={() => handleAiQuery(chatInput)}
+                    disabled={isAiThinking || !chatInput.trim()}
+                    className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50"
+                  >
+                    {isAiThinking ? 'Thinking...' : 'Ask AI'}
                   </button>
                 </div>
               </div>
@@ -293,8 +188,8 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
                   key={category.id}
                   onClick={() => setSelectedCategory(category.id as any)}
                   className={`flex flex-col items-center gap-2 p-3 rounded-xl transition-all ${selectedCategory === category.id
-                      ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg scale-105'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                     }`}
                 >
                   <span className="text-2xl">{category.icon}</span>
@@ -316,8 +211,8 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
                 key={type.id}
                 onClick={() => setSelectedType(type.id as any)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-xl whitespace-nowrap transition-all ${selectedType === type.id
-                    ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg'
-                    : 'bg-white text-gray-700 border-2 border-gray-200'
+                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg'
+                  : 'bg-white text-gray-700 border-2 border-gray-200'
                   }`}
               >
                 <type.icon className="w-4 h-4" />
@@ -346,9 +241,12 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
                   {aiRecommendations.slice(0, 4).map((resource) => (
                     <div
                       key={resource.id}
+                      onClick={() => handleResourceClick(resource)}
                       className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 hover:shadow-lg hover:scale-105 transition-all cursor-pointer"
                     >
-                      <div className="text-4xl mb-2">{resource.thumbnail}</div>
+                      <div className="w-full h-32 mb-2 bg-gradient-to-br from-purple-100 to-pink-100 rounded-xl overflow-hidden">
+                        <img src={resource.thumbnail} alt={resource.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                      </div>
                       <h4 className="font-bold text-sm text-gray-900 mb-1 line-clamp-2">
                         {resource.title}
                       </h4>
@@ -377,68 +275,66 @@ export function LearningResourcesScreen({ navigateTo }: ScreenProps) {
               {filteredResources.map((resource) => (
                 <div
                   key={resource.id}
-                  className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300"
+                  onClick={() => handleResourceClick(resource)}
+                  className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300 group"
                 >
                   <div className="flex gap-4">
-                    {/* Thumbnail */}
-                    <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0">
-                      {resource.thumbnail}
+                    {/* Thumbnail with Overlay */}
+                    <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center text-5xl flex-shrink-0 relative overflow-hidden">
+                      <img src={resource.thumbnail} alt={resource.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
+                        <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                          {resource.type === 'video' || resource.type === 'interactive' ? (
+                            <Play className="w-5 h-5 text-purple-600 ml-0.5" />
+                          ) : (
+                            <Download className="w-5 h-5 text-purple-600" />
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Content */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between gap-2 mb-2">
-                        <h4 className="font-extrabold text-gray-900 text-base">
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <h4 className="font-extrabold text-gray-900 text-base line-clamp-1 group-hover:text-purple-600 transition-colors">
                           {resource.title}
                         </h4>
                         {resource.aiRecommended && (
-                          <span className="px-2 py-1 bg-gradient-to-r from-amber-400 to-orange-400 text-white text-xs font-bold rounded-full whitespace-nowrap flex items-center gap-1">
+                          <span className="px-2 py-1 bg-gradient-to-r from-amber-400 to-orange-400 text-white text-[10px] font-bold rounded-full whitespace-nowrap flex items-center gap-1 flex-shrink-0">
                             <Sparkles className="w-3 h-3" />
                             AI
                           </span>
                         )}
                       </div>
 
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                      <p className="text-sm text-gray-600 mb-2 line-clamp-1">
                         {resource.description}
                       </p>
 
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                         {/* Type Badge */}
-                        <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 rounded-lg">
+                        <span className="flex items-center gap-1 font-medium bg-gray-100 px-2 py-0.5 rounded-md">
                           {resource.type === 'video' && <Video className="w-3 h-3" />}
                           {resource.type === 'pdf' && <FileText className="w-3 h-3" />}
                           {resource.type === 'interactive' && <Play className="w-3 h-3" />}
-                          {resource.type === 'video' ? resource.duration : `${resource.pages} pages`}
-                        </span>
-
-                        {/* Category */}
-                        <span className="flex items-center gap-1">
-                          {resource.category === 'kids' && <Baby className="w-3 h-3" />}
-                          {resource.category === 'parents' && <Users className="w-3 h-3" />}
-                          {resource.category === 'teachers' && <GraduationCap className="w-3 h-3" />}
-                          {resource.category.charAt(0).toUpperCase() + resource.category.slice(1)}
+                          {resource.type === 'video' ? resource.duration : `${resource.pages} pgs`}
                         </span>
 
                         {/* Rating */}
                         <span className="flex items-center gap-1">
                           <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                          {resource.rating}.0
+                          <span className="font-bold text-gray-700">{resource.rating}</span>
                         </span>
 
                         {/* Views */}
-                        <span>{resource.views} views</span>
+                        <span className="flex items-center gap-1">
+                          <Users className="w-3 h-3" />
+                          {resource.views}
+                        </span>
                       </div>
                     </div>
-
-                    {/* Download Button */}
-                    <button className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-xl flex items-center justify-center hover:scale-110 transition-transform shadow-lg flex-shrink-0">
-                      {resource.type === 'video' || resource.type === 'interactive' ? (
-                        <Play className="w-5 h-5" />
-                      ) : (
-                        <Download className="w-5 h-5" />
-                      )}
-                    </button>
                   </div>
                 </div>
               ))}

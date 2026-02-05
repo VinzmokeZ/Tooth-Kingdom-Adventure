@@ -120,7 +120,7 @@ export function SugarBugInvasion({ onComplete, onExit }: GameProps) {
   const stars = score >= 480 ? 3 : score >= 300 ? 2 : 1;
 
   return (
-    <div className="w-full h-full bg-gradient-to-b from-pink-500 via-purple-500 to-indigo-600 flex flex-col overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-pink-500 via-purple-500 to-indigo-600 flex flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {screen === 'start' && (
           <motion.div

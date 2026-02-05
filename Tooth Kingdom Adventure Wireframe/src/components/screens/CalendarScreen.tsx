@@ -3,16 +3,33 @@ import { ScreenProps } from './types';
 import { ChevronLeft, ChevronRight, Check, Flame } from 'lucide-react';
 
 export function CalendarScreen({ navigateTo, userData }: ScreenProps) {
-  const now = new Date();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const startDay = new Date(now.getFullYear(), now.getMonth(), 1).getDay();
+  const [currentDate, setCurrentDate] = React.useState(new Date());
+
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate();
+  const startDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay();
+
+  const nextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const prevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
+  };
 
   // Extract completed days from real brushing logs
   const completedDays = (Object.entries(userData.brushingLogs) as [string, { morning: boolean; evening: boolean }][])
-    .filter(([date, status]) => status.morning || status.evening)
+    .filter(([date, status]) => {
+      const logDate = new Date(date);
+      return (
+        logDate.getMonth() === currentDate.getMonth() &&
+        logDate.getFullYear() === currentDate.getFullYear() &&
+        (status.morning || status.evening)
+      );
+    })
     .map(([date]) => new Date(date).getDate());
 
-  const currentDay = now.getDate();
+  const currentDay = new Date().getDate();
+  const isCurrentMonth = new Date().getMonth() === currentDate.getMonth() && new Date().getFullYear() === currentDate.getFullYear();
 
   return (
     <div className="h-full bg-gradient-to-b from-green-50 to-white flex flex-col">
@@ -27,13 +44,13 @@ export function CalendarScreen({ navigateTo, userData }: ScreenProps) {
 
         {/* Month selector */}
         <div className="flex items-center justify-between bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl px-4 py-3 text-white">
-          <button className="p-1">
+          <button onClick={prevMonth} className="p-1 hover:bg-white/20 rounded-full transition-colors">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="font-bold text-lg">
-            {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date())}
+          <span className="font-bold text-lg select-none">
+            {new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(currentDate)}
           </span>
-          <button className="p-1">
+          <button onClick={nextMonth} className="p-1 hover:bg-white/20 rounded-full transition-colors">
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
@@ -63,7 +80,7 @@ export function CalendarScreen({ navigateTo, userData }: ScreenProps) {
             {[...Array(daysInMonth)].map((_, i) => {
               const day = i + 1;
               const isCompleted = completedDays.includes(day);
-              const isToday = day === currentDay;
+              const isToday = isCurrentMonth && day === currentDay;
 
               return (
                 <button

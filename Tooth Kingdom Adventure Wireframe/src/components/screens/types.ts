@@ -10,6 +10,12 @@ export interface UserData {
   unlockedRewards: number[];
   brushingLogs: { [date: string]: { morning: boolean; evening: boolean } };
   lastBrushedTimestamp: string | null;
+  name?: string;
+  settings?: {
+    darkMode: boolean;
+    notifications: boolean;
+    sound: boolean;
+  };
 }
 
 export interface ScreenProps {

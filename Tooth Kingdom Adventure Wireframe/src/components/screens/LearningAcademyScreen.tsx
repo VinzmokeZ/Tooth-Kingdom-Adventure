@@ -3,37 +3,8 @@ import { ScreenProps } from './types';
 import { ArrowLeft, BookOpen, Video, FileText, Download, Play, Star, Users, Baby, GraduationCap, Search, Sparkles, Bot, Award, Clock, CheckCircle, Lock, Bookmark, TrendingUp, Brain, Zap, Globe } from 'lucide-react';
 import logo from 'figma:asset/5b0695099dfd67c35f14fc4f047da4df5ed6aa0e.png';
 
-interface Course {
-  id: number;
-  title: string;
-  description: string;
-  instructor: string;
-  duration: string;
-  lessons: number;
-  level: 'beginner' | 'intermediate' | 'advanced';
-  category: 'kids' | 'parents' | 'teachers';
-  thumbnail: string;
-  progress?: number;
-  rating: number;
-  students: string;
-  isDownloaded?: boolean;
-  isFeatured?: boolean;
-  aiRecommended?: boolean;
-}
-
-interface PDFResource {
-  id: number;
-  title: string;
-  description: string;
-  pages: number;
-  size: string;
-  category: 'guide' | 'worksheet' | 'reference' | 'activity';
-  targetAudience: 'kids' | 'parents' | 'teachers';
-  thumbnail: string;
-  isDownloaded: boolean;
-  downloadProgress?: number;
-  aiRecommended?: boolean;
-}
+import { ACADEMY_COURSES, ACADEMY_PDFS, Course, PDFResource } from '../../data/learningContent';
+import { getAIChatResponse } from '../../utils/aiMockService';
 
 export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
   const [activeTab, setActiveTab] = useState<'courses' | 'pdfs' | 'mylearning' | 'ai-tutor'>('courses');
@@ -41,191 +12,41 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
   const [selectedFilter, setSelectedFilter] = useState<'all' | 'kids' | 'parents' | 'teachers'>('all');
   const [showAITutor, setShowAITutor] = useState(false);
 
-  const courses: Course[] = [
+  // AI Chat Logic
+  const [chatInput, setChatInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [messages, setMessages] = useState<Array<{ id: string, text: string, sender: 'user' | 'ai', timestamp: Date }>>([
     {
-      id: 1,
-      title: 'Complete Dental Hygiene for Kids',
-      description: 'Master brushing, flossing, and healthy habits through fun interactive lessons',
-      instructor: 'Dr. Sarah Smile',
-      duration: '2h 30m',
-      lessons: 12,
-      level: 'beginner',
-      category: 'kids',
-      thumbnail: 'https://images.unsplash.com/photo-1584516151140-f79fde30d55f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZW50YWwlMjBjYXJlJTIwY2hpbGRyZW4lMjBicnVzaGluZ3xlbnwxfHx8fDE3NjkxNTM0ODV8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      progress: 45,
-      rating: 5,
-      students: '15.2K',
-      isDownloaded: true,
-      isFeatured: true,
-      aiRecommended: true,
-    },
-    {
-      id: 2,
-      title: 'Parenting Guide: Dental Care 0-12',
-      description: 'Complete roadmap for your child\'s dental health from infancy to pre-teens',
-      instructor: 'Dr. Mike Tooth',
-      duration: '3h 15m',
-      lessons: 18,
-      level: 'beginner',
-      category: 'parents',
-      thumbnail: 'https://images.unsplash.com/photo-1758653500342-5476c8ec3da6?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZW50aXN0JTIwcHJvZmVzc2lvbmFsJTIwbWVkaWNhbHxlbnwxfHx8fDE3NjkxNTM0ODV8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      progress: 0,
-      rating: 5,
-      students: '22.8K',
-      isFeatured: true,
-      aiRecommended: true,
-    },
-    {
-      id: 3,
-      title: 'Teaching Dental Health in Schools',
-      description: 'Professional curriculum for educators with lesson plans and activities',
-      instructor: 'Prof. Lisa Care',
-      duration: '4h 00m',
-      lessons: 24,
-      level: 'intermediate',
-      category: 'teachers',
-      thumbnail: 'https://images.unsplash.com/photo-1542725752-e9f7259b3881?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlZHVjYXRpb24lMjBib29rcyUyMGxlYXJuaW5nfGVufDF8fHx8MTc2OTEzODc4OHww&ixlib=rb-4.1.0&q=80&w=1080',
-      rating: 5,
-      students: '8.5K',
-    },
-    {
-      id: 4,
-      title: 'Advanced Brushing Techniques',
-      description: 'Level up your brushing skills with professional techniques',
-      instructor: 'Dr. Emma Clean',
-      duration: '1h 45m',
-      lessons: 8,
-      level: 'advanced',
-      category: 'kids',
-      thumbnail: 'https://images.unsplash.com/photo-1764874299025-d8b2251f307d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhY2hpZXZlbWVudCUyMHRyb3BoeSUyMGF3YXJkfGVufDF8fHx8MTc2OTE1MzQ4NXww&ixlib=rb-4.1.0&q=80&w=1080',
-      progress: 100,
-      rating: 5,
-      students: '12.1K',
-      isDownloaded: true,
-    },
-    {
-      id: 5,
-      title: 'Nutrition for Healthy Teeth',
-      description: 'Learn which foods strengthen teeth and which to avoid',
-      instructor: 'Dr. Carlos Nutri',
-      duration: '2h 00m',
-      lessons: 10,
-      level: 'beginner',
-      category: 'parents',
-      thumbnail: 'https://images.unsplash.com/photo-1645220559451-aaacbbd7bcc5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZm9vZCUyMHZlZ2V0YWJsZXMlMjBudXRyaXRpb258ZW58MXx8fHwxNzY5MTUzNDg2fDA&ixlib=rb-4.1.0&q=80&w=1080',
-      rating: 4,
-      students: '18.3K',
-      aiRecommended: true,
-    },
-    {
-      id: 6,
-      title: 'Fun Dental Games & Activities',
-      description: 'Interactive games to make dental learning exciting for classrooms',
-      instructor: 'Teacher Joy',
-      duration: '1h 30m',
-      lessons: 6,
-      level: 'beginner',
-      category: 'teachers',
-      thumbnail: 'https://images.unsplash.com/photo-1571593992702-27f222d4059a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjaGlsZHJlbiUyMHBsYXlpbmclMjBnYW1lc3xlbnwxfHx8fDE3NjkxNTM0ODZ8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      rating: 5,
-      students: '6.7K',
-    },
-  ];
+      id: 'welcome',
+      text: "Hi! I'm your smart learning buddy! Ask me anything about dental health. 🤖💙",
+      sender: 'ai',
+      timestamp: new Date()
+    }
+  ]);
 
-  const pdfResources: PDFResource[] = [
-    {
-      id: 1,
-      title: 'Brushing Basics Illustrated Guide',
-      description: 'Step-by-step visual guide for proper brushing technique',
-      pages: 24,
-      size: '4.2 MB',
-      category: 'guide',
-      targetAudience: 'kids',
-      thumbnail: 'https://images.unsplash.com/photo-1584516151140-f79fde30d55f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxkZW50YWwlMjBjYXJlJTIwY2hpbGRyZW4lMjBicnVzaGluZ3xlbnwxfHx8fDE3NjkxNTM0ODV8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: true,
-      aiRecommended: true,
-    },
-    {
-      id: 2,
-      title: 'Dental Heroes Coloring Book',
-      description: 'Fun coloring pages featuring all Tooth Kingdom characters',
-      pages: 32,
-      size: '8.5 MB',
-      category: 'activity',
-      targetAudience: 'kids',
-      thumbnail: 'https://images.unsplash.com/photo-1649750291589-8812197b698c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2xvcmluZyUyMGJvb2slMjBhcnQlMjBjaGlsZHJlbnxlbnwxfHx8fDE3NjkxNTM0ODd8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: true,
-    },
-    {
-      id: 3,
-      title: 'Parent\'s Complete Dental Handbook',
-      description: 'Comprehensive guide covering all aspects of children\'s dental care',
-      pages: 68,
-      size: '12.3 MB',
-      category: 'reference',
-      targetAudience: 'parents',
-      thumbnail: 'https://images.unsplash.com/photo-1542725752-e9f7259b3881?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlZHVjYXRpb24lMjBib29rcyUyMGxlYXJuaW5nfGVufDF8fHx8MTc2OTEzODc4OHww&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: false,
-      aiRecommended: true,
-    },
-    {
-      id: 4,
-      title: 'Classroom Worksheets Pack',
-      description: '50+ printable worksheets for different grade levels',
-      pages: 52,
-      size: '15.7 MB',
-      category: 'worksheet',
-      targetAudience: 'teachers',
-      thumbnail: 'https://images.unsplash.com/photo-1588561181397-fed38f837e17?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxub3RlYm9vayUyMHdyaXRpbmclMjB3b3Jrc2hlZXR8ZW58MXx8fHwxNzY5MTUzNDg3fDA&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: false,
-    },
-    {
-      id: 5,
-      title: 'Tooth Anatomy for Kids',
-      description: 'Educational poster and guide explaining tooth structure',
-      pages: 8,
-      size: '2.1 MB',
-      category: 'guide',
-      targetAudience: 'kids',
-      thumbnail: 'https://images.unsplash.com/photo-1614308457932-e16d85c5d053?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzY2llbmNlJTIwbWljcm9zY29wZSUyMGxhYm9yYXRvcnl8ZW58MXx8fHwxNzY5MTUzNDg4fDA&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: true,
-      downloadProgress: 100,
-    },
-    {
-      id: 6,
-      title: 'Dental Emergency Response Guide',
-      description: 'Quick reference for handling common dental emergencies',
-      pages: 16,
-      size: '3.4 MB',
-      category: 'reference',
-      targetAudience: 'parents',
-      thumbnail: 'https://images.unsplash.com/photo-1760783544473-33be6396eb5a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbWVyZ2VuY3klMjBtZWRpY2FsJTIwZmlyc3QlMjBhaWR8ZW58MXx8fHwxNzY5MTUzNDg4fDA&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: false,
-      aiRecommended: true,
-    },
-    {
-      id: 7,
-      title: 'Weekly Dental Activity Planner',
-      description: 'Structured activity plans for consistent dental education',
-      pages: 28,
-      size: '5.8 MB',
-      category: 'worksheet',
-      targetAudience: 'teachers',
-      thumbnail: 'https://images.unsplash.com/photo-1588453251771-cd919b362ed4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYWxlbmRhciUyMHBsYW5uZXIlMjBzY2hlZHVsZXxlbnwxfHx8fDE3NjkxNDA3ODl8MA&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: true,
-    },
-    {
-      id: 8,
-      title: 'Healthy Snacks Recipe Book',
-      description: 'Tooth-friendly recipes that kids will love',
-      pages: 40,
-      size: '9.2 MB',
-      category: 'guide',
-      targetAudience: 'parents',
-      thumbnail: 'https://images.unsplash.com/photo-1630700499299-9ba22882142d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmVzaCUyMGZydWl0JTIwYXBwbGUlMjBoZWFsdGh5fGVufDF8fHx8MTc2OTE1MzQ4OXww&ixlib=rb-4.1.0&q=80&w=1080',
-      isDownloaded: false,
-    },
-  ];
+  const openResource = (url: string) => {
+    window.open(url, '_blank');
+  };
+
+  // ... inside component ...
+
+  const handleSendMessage = (text: string) => {
+    if (!text.trim()) return;
+    const userMsg = { id: Date.now().toString(), text, sender: 'user' as const, timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setIsTyping(true);
+
+    setTimeout(() => {
+      const responseText = getAIChatResponse(text, 'Champion');
+      const aiMsg = { id: (Date.now() + 1).toString(), text: responseText, sender: 'ai' as const, timestamp: new Date() };
+      setMessages(prev => [...prev, aiMsg]);
+      setIsTyping(false);
+    }, 1200); // Slightly more random delay?
+  };
+
+  const courses: Course[] = ACADEMY_COURSES;
+  const pdfResources: PDFResource[] = ACADEMY_PDFS;
 
   const filteredCourses = courses.filter(course => {
     const matchesFilter = selectedFilter === 'all' || course.category === selectedFilter;
@@ -286,8 +107,8 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
               className={`flex items-center gap-2 px-4 py-2.5 rounded-xl whitespace-nowrap transition-all ${activeTab === tab.id
-                  ? 'bg-white text-purple-600 shadow-lg scale-105'
-                  : 'bg-white/20 backdrop-blur-sm text-white hover:bg-white/30'
+                ? 'bg-white text-purple-600 shadow-lg scale-105'
+                : 'bg-white/20 backdrop-blur-sm text-white hover:bg-white/30'
                 }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -327,8 +148,8 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                     key={filter.id}
                     onClick={() => setSelectedFilter(filter.id as any)}
                     className={`flex items-center gap-2 px-4 py-2 rounded-xl whitespace-nowrap transition-all ${selectedFilter === filter.id
-                        ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg scale-105'
-                        : 'bg-white text-gray-700 border-2 border-gray-200'
+                      ? 'bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg scale-105'
+                      : 'bg-white text-gray-700 border-2 border-gray-200'
                       }`}
                   >
                     <span className="text-lg">{filter.icon}</span>
@@ -366,15 +187,13 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                               <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <h4 className="font-bold text-sm text-gray-900 mb-1">{course.title}</h4>
-                              <div className="flex items-center gap-2 text-xs text-gray-600 mb-2">
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  {course.duration}
-                                </span>
+                              <h3 className="font-bold text-gray-900 leading-tight mb-1 line-clamp-2">{course.title}</h3>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                                <span>{course.instructor}</span>
                                 <span>•</span>
-                                <span>{course.lessons} lessons</span>
+                                <span>{course.duration}</span>
                               </div>
+                              <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed">{course.description}</p>
                               {course.progress !== undefined && course.progress > 0 && (
                                 <div className="mt-2">
                                   <div className="flex items-center justify-between text-xs mb-1">
@@ -444,36 +263,42 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                   {filteredCourses.map((course) => (
                     <div
                       key={course.id}
-                      className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300"
+                      onClick={() => openResource(course.url)}
+                      className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300 group"
                     >
                       <div className="flex gap-4">
                         <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl overflow-hidden flex-shrink-0 relative">
-                          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                              <Play className="w-5 h-5 text-purple-600 ml-1" />
+                            </div>
+                          </div>
                           {course.isDownloaded && (
-                            <div className="absolute -top-2 -right-2 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                              <CheckCircle className="w-4 h-4 text-white" />
+                            <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-10">
+                              <CheckCircle className="w-3 h-3 text-white" />
                             </div>
                           )}
                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h4 className="font-extrabold text-gray-900 text-base">
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h4 className="font-extrabold text-gray-900 text-base leading-tight group-hover:text-purple-600 transition-colors">
                               {course.title}
                             </h4>
                             {course.aiRecommended && (
-                              <span className="px-2 py-1 bg-gradient-to-r from-cyan-400 to-blue-400 text-white text-xs font-bold rounded-full whitespace-nowrap flex items-center gap-1 flex-shrink-0">
+                              <span className="px-2 py-1 bg-gradient-to-r from-cyan-400 to-blue-400 text-white text-[10px] font-bold rounded-full whitespace-nowrap flex items-center gap-1 flex-shrink-0">
                                 <Sparkles className="w-3 h-3" />
                                 AI
                               </span>
                             )}
                           </div>
 
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                          <p className="text-xs text-gray-600 mb-2 line-clamp-1">
                             {course.description}
                           </p>
 
-                          <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
                             <span className="flex items-center gap-1">
                               <Users className="w-3 h-3" />
                               {course.students}
@@ -488,33 +313,6 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                               <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                               {course.rating}.0
                             </span>
-                          </div>
-
-                          {course.progress !== undefined && course.progress > 0 && (
-                            <div className="mb-3">
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-600">Your Progress</span>
-                                <span className="font-bold text-purple-600">{course.progress}%</span>
-                              </div>
-                              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
-                                  style={{ width: `${course.progress}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex gap-2">
-                            <button className="flex-1 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm flex items-center justify-center gap-2">
-                              <Play className="w-4 h-4" />
-                              {course.progress ? 'Continue' : 'Start Course'}
-                            </button>
-                            {!course.isDownloaded && (
-                              <button className="w-12 h-full bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center">
-                                <Download className="w-4 h-4" />
-                              </button>
-                            )}
                           </div>
                         </div>
                       </div>
@@ -546,15 +344,23 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                       {downloadedPDFs.map((pdf) => (
                         <div
                           key={pdf.id}
-                          className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-3 hover:shadow-lg hover:scale-105 transition-all cursor-pointer"
+                          onClick={() => openResource(pdf.url)}
+                          className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-2xl p-3 hover:shadow-lg hover:scale-105 transition-all cursor-pointer group relative overflow-hidden"
                         >
-                          <div className="text-3xl mb-2">{pdf.thumbnail}</div>
-                          <h4 className="font-bold text-xs text-gray-900 mb-1 line-clamp-2">
+                          <div className="text-3xl mb-2 group-hover:scale-110 transition-transform duration-300">{pdf.thumbnail}</div>
+                          <h4 className="font-bold text-xs text-gray-900 mb-1 line-clamp-2 leading-tight">
                             {pdf.title}
                           </h4>
-                          <div className="flex items-center gap-1 text-xs text-gray-600">
+                          <div className="flex items-center gap-1 text-xs text-green-700 font-medium">
                             <FileText className="w-3 h-3" />
                             <span>{pdf.pages} pages</span>
+                          </div>
+
+                          {/* Hover Overlay */}
+                          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                            <div className="bg-white/90 p-2 rounded-full shadow-lg">
+                              <FileText className="w-5 h-5 text-green-600" />
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -577,17 +383,19 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                       {pdfResources.filter(p => p.aiRecommended).map((pdf) => (
                         <div
                           key={pdf.id}
-                          className="bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-2xl p-3 hover:shadow-lg transition-all cursor-pointer"
+                          onClick={() => openResource(pdf.url)}
+                          className="bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-2xl p-3 hover:shadow-lg transition-all cursor-pointer group flex items-center gap-3 relative overflow-hidden"
                         >
-                          <div className="flex items-center gap-3">
-                            <div className="text-3xl">{pdf.thumbnail}</div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-bold text-sm text-gray-900">{pdf.title}</h4>
-                              <p className="text-xs text-gray-600">{pdf.pages} pages • {pdf.size}</p>
+                          <div className="text-3xl group-hover:scale-110 transition-transform">{pdf.thumbnail}</div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-sm text-gray-900 line-clamp-1">{pdf.title}</h4>
+                              <span className="px-1.5 py-0.5 bg-cyan-100 text-cyan-700 text-[10px] font-bold rounded-full">AI</span>
                             </div>
-                            <button className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-500 text-white rounded-xl flex items-center justify-center hover:scale-110 transition-transform">
-                              <Download className="w-5 h-5" />
-                            </button>
+                            <p className="text-xs text-gray-600 line-clamp-1">{pdf.pages} pages • {pdf.size}</p>
+                          </div>
+                          <div className="w-8 h-8 bg-white/50 rounded-full flex items-center justify-center group-hover:bg-cyan-500 group-hover:text-white transition-colors">
+                            <Download className="w-4 h-4" />
                           </div>
                         </div>
                       ))}
@@ -606,76 +414,51 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                   {filteredPDFs.map((pdf) => (
                     <div
                       key={pdf.id}
-                      className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300"
+                      onClick={() => openResource(pdf.url)}
+                      className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300 group"
                     >
                       <div className="flex gap-4">
-                        <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0 relative">
-                          {pdf.thumbnail}
+                        <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl flex items-center justify-center text-4xl flex-shrink-0 relative overflow-hidden">
+                          <span className="group-hover:scale-110 transition-transform duration-300">{pdf.thumbnail}</span>
+                          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl">
+                            <Download className="w-6 h-6 text-purple-600 bg-white/90 p-1.5 rounded-full shadow-sm" />
+                          </div>
                           {pdf.isDownloaded && (
-                            <div className="absolute -top-2 -right-2 w-7 h-7 bg-green-500 rounded-full flex items-center justify-center shadow-lg">
-                              <CheckCircle className="w-4 h-4 text-white" />
+                            <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shadow-lg z-10">
+                              <CheckCircle className="w-3 h-3 text-white" />
                             </div>
                           )}
                         </div>
 
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2 mb-2">
-                            <h4 className="font-extrabold text-gray-900 text-base">
+                        <div className="flex-1 min-w-0 flex flex-col justify-center">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <h4 className="font-extrabold text-gray-900 text-base group-hover:text-purple-600 transition-colors">
                               {pdf.title}
                             </h4>
                             {pdf.aiRecommended && (
-                              <span className="px-2 py-1 bg-gradient-to-r from-cyan-400 to-blue-400 text-white text-xs font-bold rounded-full whitespace-nowrap flex items-center gap-1 flex-shrink-0">
+                              <span className="px-2 py-1 bg-gradient-to-r from-cyan-400 to-blue-400 text-white text-[10px] font-bold rounded-full whitespace-nowrap flex items-center gap-1 flex-shrink-0">
                                 <Sparkles className="w-3 h-3" />
                                 AI
                               </span>
                             )}
                           </div>
 
-                          <p className="text-sm text-gray-600 mb-3">
+                          <p className="text-xs text-gray-600 mb-2 line-clamp-1">
                             {pdf.description}
                           </p>
 
-                          <div className="flex items-center gap-3 text-xs text-gray-500 mb-3">
-                            <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-lg font-medium">
-                              {pdf.category.toUpperCase()}
+                          <div className="flex items-center gap-3 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                              <span className="font-bold text-gray-700">{pdf.rating}</span>
                             </span>
-                            <span>{pdf.pages} pages</span>
-                            <span>•</span>
-                            <span>{pdf.size}</span>
-                          </div>
-
-                          {pdf.downloadProgress !== undefined && pdf.downloadProgress < 100 && (
-                            <div className="mb-3">
-                              <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-600">Downloading...</span>
-                                <span className="font-bold text-green-600">{pdf.downloadProgress}%</span>
-                              </div>
-                              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
-                                  style={{ width: `${pdf.downloadProgress}%` }}
-                                ></div>
-                              </div>
-                            </div>
-                          )}
-
-                          <div className="flex gap-2">
-                            {pdf.isDownloaded ? (
-                              <>
-                                <button className="flex-1 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm flex items-center justify-center gap-2">
-                                  <FileText className="w-4 h-4" />
-                                  Open PDF
-                                </button>
-                                <button className="w-12 h-full bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center">
-                                  <Bookmark className="w-4 h-4" />
-                                </button>
-                              </>
-                            ) : (
-                              <button className="flex-1 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm flex items-center justify-center gap-2">
-                                <Download className="w-4 h-4" />
-                                Download ({pdf.size})
-                              </button>
-                            )}
+                            <span className="flex items-center gap-1">
+                              <Users className="w-3 h-3" />
+                              {pdf.views}
+                            </span>
+                            <span className="bg-gray-100 px-1.5 py-0.5 rounded text-[10px] font-medium text-gray-600">
+                              {pdf.size}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -723,35 +506,36 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                   {myLearningCourses.map((course) => (
                     <div
                       key={course.id}
-                      className="bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-all cursor-pointer"
+                      onClick={() => openResource(course.url)}
+                      className="bg-white rounded-2xl shadow-lg p-5 hover:shadow-xl transition-all cursor-pointer border-2 border-transparent hover:border-purple-300 group"
                     >
-                      <div className="flex gap-3 mb-3">
-                        <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl overflow-hidden flex-shrink-0">
-                          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover" />
+                      <div className="flex gap-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-pink-100 rounded-2xl overflow-hidden flex-shrink-0 relative">
+                          <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                          <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                            <div className="w-8 h-8 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                              <Play className="w-4 h-4 text-purple-600 ml-0.5" />
+                            </div>
+                          </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-gray-900 mb-1">{course.title}</h4>
-                          <p className="text-xs text-gray-600">{course.instructor}</p>
+                          <h4 className="font-bold text-gray-900 mb-1 group-hover:text-purple-600 transition-colors">{course.title}</h4>
+                          <p className="text-xs text-gray-600 mb-2">{course.instructor}</p>
+
+                          <div className="mb-2">
+                            <div className="flex items-center justify-between text-xs mb-1">
+                              <span className="text-gray-600">Progress</span>
+                              <span className="font-bold text-purple-600">{course.progress}%</span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                                style={{ width: `${course.progress}%` }}
+                              ></div>
+                            </div>
+                          </div>
                         </div>
                       </div>
-
-                      <div className="mb-2">
-                        <div className="flex items-center justify-between text-xs mb-1">
-                          <span className="text-gray-600">Progress</span>
-                          <span className="font-bold text-purple-600">{course.progress}%</span>
-                        </div>
-                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
-                            style={{ width: `${course.progress}%` }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      <button className="w-full py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:shadow-lg transition-all text-sm flex items-center justify-center gap-2">
-                        <Play className="w-4 h-4" />
-                        Continue Learning
-                      </button>
                     </div>
                   ))}
                 </div>
@@ -767,16 +551,21 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
                   {downloadedPDFs.map((pdf) => (
                     <div
                       key={pdf.id}
-                      className="bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-all cursor-pointer"
+                      onClick={() => openResource(pdf.url)}
+                      className="bg-white rounded-2xl shadow-lg p-4 hover:shadow-xl transition-all cursor-pointer group relative overflow-hidden border-2 border-transparent hover:border-green-300"
                     >
-                      <div className="text-4xl mb-2">{pdf.thumbnail}</div>
-                      <h4 className="font-bold text-sm text-gray-900 mb-1 line-clamp-2">
+                      <div className="text-4xl mb-2 group-hover:scale-110 transition-transform duration-300">{pdf.thumbnail}</div>
+                      <h4 className="font-bold text-sm text-gray-900 mb-1 line-clamp-2 leading-tight">
                         {pdf.title}
                       </h4>
-                      <p className="text-xs text-gray-600 mb-3">{pdf.pages} pages</p>
-                      <button className="w-full py-2 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all text-xs">
-                        Open
-                      </button>
+                      <p className="text-xs text-gray-600 mb-0">{pdf.pages} pages</p>
+
+                      {/* Hover Overlay */}
+                      <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <div className="bg-white/90 p-2 rounded-full shadow-lg">
+                          <FileText className="w-5 h-5 text-green-600" />
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -786,146 +575,98 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
 
           {/* AI Tutor Tab */}
           {activeTab === 'ai-tutor' && (
-            <div className="space-y-6">
-              {/* AI Tutor Header */}
-              <div className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-3xl shadow-2xl p-1">
-                <div className="bg-white rounded-[22px] p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
-                      <Bot className="w-8 h-8 text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-extrabold text-gray-900 flex items-center gap-2">
-                        AI Learning Tutor
-                        <span className="px-2 py-1 bg-gradient-to-r from-green-400 to-emerald-400 text-white text-xs font-bold rounded-full">
-                          ONLINE 24/7
-                        </span>
-                      </h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Your personal AI assistant for dental education 🤖💙
-                      </p>
-                    </div>
-                  </div>
+            <div className="space-y-6 h-full flex flex-col">
+              {/* Chat Interface */}
+              <div className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-3xl shadow-2xl p-1 flex-1 flex flex-col min-h-[500px]">
+                <div className="bg-white rounded-[22px] flex-1 flex flex-col overflow-hidden">
 
-                  <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-2xl p-4 mb-4">
-                    <h4 className="font-bold text-gray-900 mb-2 flex items-center gap-2">
-                      <Brain className="w-5 h-5 text-purple-500" />
-                      What I Can Do:
-                    </h4>
-                    <div className="space-y-2 text-sm text-gray-700">
-                      <div className="flex items-start gap-2">
-                        <Zap className="w-4 h-4 text-cyan-500 mt-0.5 flex-shrink-0" />
-                        <span>Answer any dental health questions instantly</span>
+                  {/* Chat Header */}
+                  <div className="p-4 border-b border-gray-100 bg-white shadow-sm z-10">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                        <Bot className="w-6 h-6 text-white" />
                       </div>
-                      <div className="flex items-start gap-2">
-                        <Zap className="w-4 h-4 text-cyan-500 mt-0.5 flex-shrink-0" />
-                        <span>Create personalized learning paths based on your goals</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Zap className="w-4 h-4 text-cyan-500 mt-0.5 flex-shrink-0" />
-                        <span>Recommend the best courses and resources for you</span>
-                      </div>
-                      <div className="flex items-start gap-2">
-                        <Zap className="w-4 h-4 text-cyan-500 mt-0.5 flex-shrink-0" />
-                        <span>Quiz you on what you've learned to reinforce knowledge</span>
+                      <div>
+                        <h3 className="font-extrabold text-gray-900 flex items-center gap-2">
+                          AI Learning Tutor
+                          <span className="px-2 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full animate-pulse">
+                            ONLINE
+                          </span>
+                        </h3>
+                        <p className="text-xs text-gray-500">Ask me anything!</p>
                       </div>
                     </div>
                   </div>
 
-                  {/* Quick Actions */}
-                  <div className="grid grid-cols-2 gap-2 mb-4">
-                    <button className="p-3 bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl text-left hover:shadow-lg transition-all">
-                      <div className="text-xl mb-1">📚</div>
-                      <div className="text-xs font-bold text-gray-900">Create Learning Path</div>
-                    </button>
-                    <button className="p-3 bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-xl text-left hover:shadow-lg transition-all">
-                      <div className="text-xl mb-1">❓</div>
-                      <div className="text-xs font-bold text-gray-900">Ask a Question</div>
-                    </button>
-                    <button className="p-3 bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-xl text-left hover:shadow-lg transition-all">
-                      <div className="text-xl mb-1">🎯</div>
-                      <div className="text-xs font-bold text-gray-900">Take a Quiz</div>
-                    </button>
-                    <button className="p-3 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl text-left hover:shadow-lg transition-all">
-                      <div className="text-xl mb-1">💡</div>
-                      <div className="text-xs font-bold text-gray-900">Get Recommendations</div>
-                    </button>
+                  {/* Messages Area */}
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+                    {messages.map((msg) => (
+                      <div key={msg.id} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`flex items-end gap-2 max-w-[85%] ${msg.sender === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.sender === 'user' ? 'bg-purple-100' : 'bg-cyan-100'}`}>
+                            {msg.sender === 'user' ? '👤' : '🤖'}
+                          </div>
+                          <div
+                            className={`p-3 rounded-2xl text-sm leading-relaxed ${msg.sender === 'user'
+                              ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-tr-none shadow-lg'
+                              : 'bg-white border-2 border-gray-100 rounded-tl-none shadow-sm text-gray-800'
+                              }`}
+                          >
+                            {msg.text}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {isTyping && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-200 rounded-full px-4 py-2 text-xs text-gray-500 animate-pulse">
+                          AI is typing...
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Chat Input */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Ask me anything about dental health..."
-                      className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 focus:bg-white transition-all text-sm"
-                    />
-                    <button className="px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all whitespace-nowrap">
-                      Ask AI
-                    </button>
+                  {/* Input Area */}
+                  <div className="p-4 bg-white border-t border-gray-100">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleSendMessage(chatInput)}
+                        placeholder="Type your question..."
+                        className="flex-1 px-4 py-3 bg-gray-50 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-cyan-500 focus:bg-white transition-all text-sm"
+                      />
+                      <button
+                        onClick={() => handleSendMessage(chatInput)}
+                        disabled={!chatInput.trim() || isTyping}
+                        className="px-4 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Zap className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Popular Questions */}
+              {/* Suggestions / Popular Questions */}
               <div>
-                <h3 className="text-lg font-extrabold text-gray-900 mb-4">💡 Popular Questions</h3>
-                <div className="space-y-2">
+                <h3 className="text-sm font-extrabold text-gray-900 mb-2 px-2">💡 Try asking:</h3>
+                <div className="flex flex-wrap gap-2">
                   {[
-                    'How often should kids brush their teeth?',
-                    'What\'s the best technique for flossing?',
-                    'Which foods are best for dental health?',
-                    'How do I prepare my child for dentist visits?',
-                    'What age should kids start using mouthwash?',
-                    'How to deal with tooth sensitivity?',
-                  ].map((question, index) => (
+                    'How do I brush correctly? 🦷',
+                    'What causes cavities? 🦠',
+                    'Why is sugar bad? 🍬',
+                    'Tell me a fun dental fact! 🌟'
+                  ].map((q, i) => (
                     <button
-                      key={index}
-                      className="w-full text-left px-4 py-3 bg-white rounded-xl text-sm text-gray-700 hover:bg-purple-50 hover:text-purple-700 hover:shadow-lg transition-all border-2 border-gray-200 hover:border-purple-300"
+                      key={i}
+                      onClick={() => handleSendMessage(q)}
+                      className="px-3 py-2 bg-white border-2 border-purple-100 rounded-xl text-xs font-bold text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-all shadow-sm"
                     >
-                      {question}
+                      {q}
                     </button>
                   ))}
-                </div>
-              </div>
-
-              {/* AI Learning Insights */}
-              <div className="bg-gradient-to-r from-amber-400 to-orange-400 rounded-3xl shadow-2xl p-1">
-                <div className="bg-white rounded-[22px] p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <TrendingUp className="w-6 h-6 text-amber-500" />
-                    <h3 className="text-xl font-extrabold text-gray-900">Your Learning Insights</h3>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex items-start gap-3 p-3 bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl">
-                      <div className="text-2xl">🎯</div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-sm text-gray-900 mb-1">Learning Style</h4>
-                        <p className="text-xs text-gray-700">
-                          You learn best through visual content. AI recommends video courses!
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3 p-3 bg-gradient-to-br from-cyan-50 to-blue-50 border-2 border-cyan-200 rounded-xl">
-                      <div className="text-2xl">⏰</div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-sm text-gray-900 mb-1">Best Learning Time</h4>
-                        <p className="text-xs text-gray-700">
-                          You're most active in the morning. Schedule lessons for 9-11 AM!
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3 p-3 bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl">
-                      <div className="text-2xl">📈</div>
-                      <div className="flex-1">
-                        <h4 className="font-bold text-sm text-gray-900 mb-1">Progress Prediction</h4>
-                        <p className="text-xs text-gray-700">
-                          At your current pace, you'll complete 3 more courses this month!
-                        </p>
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -942,6 +683,6 @@ export function LearningAcademyScreen({ navigateTo, userData }: ScreenProps) {
           overflow: hidden;
         }
       ` }} />
-    </div>
+    </div >
   );
 }

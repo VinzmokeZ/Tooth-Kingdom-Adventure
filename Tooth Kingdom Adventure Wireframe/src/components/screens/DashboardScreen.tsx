@@ -1,10 +1,39 @@
 import React from 'react';
 import { ScreenProps } from './types';
-import { Calendar, Trophy, BookOpen, TrendingUp, Flame, Zap, Award, Star, ChevronRight, Bell, Sparkles as SparklesIcon, Bot, Brain, Target, Menu, Gift, Home, Check } from 'lucide-react';
+import { Calendar, Trophy, BookOpen, TrendingUp, Flame, Zap, Award, Star, ChevronRight, Bell, Sparkles as SparklesIcon, Bot, Brain, Target, Menu, Gift, Home, Check, Play, Clock, Users } from 'lucide-react';
 import { UserAvatar } from '../common/UserAvatar';
 import logo from '../../assets/5b0695099dfd67c35f14fc4f047da4df5ed6aa0e.png';
+import { ACADEMY_COURSES } from '../../data/learningContent';
 
 export function DashboardScreen({ navigateTo, userData }: ScreenProps) {
+  // AI Tips Database
+  const AI_TIPS = [
+    "Great job checking in! Did you know brushing for 2 minutes is the perfect amount of time to defeat all sugar bugs?",
+    "Fun Fact: Flossing once a day keeps the gum monsters away! Try doing it before bed tonight.",
+    "Pro Tip: Don't rinse with water immediately after brushing—let the fluoride sit and protect your teeth!",
+    "Your streak is on fire! 🔥 Keep it up to unlock the Golden Shield reward soon.",
+    "Did you know? Cheese is actually good for your teeth because it balances the pH level in your mouth!",
+    "Remember to change your toothbrush every 3 months. A fresh brush fights germs better!",
+    "Drinking water after sweets helps wash away sugar monsters before they can attack.",
+    "Use a pea-sized amount of toothpaste. That's all you need for a super-powered smile!",
+    "Brushing your tongue helps keep your breath fresh and removes hidden bacteria.",
+    "Eat crunchy fruits like apples—they act like a natural toothbrush for your gums!"
+  ];
+
+  const [currentTip, setCurrentTip] = React.useState(AI_TIPS[0]);
+  const [isAnimatingTip, setIsAnimatingTip] = React.useState(false);
+
+  const getNewTip = () => {
+    setIsAnimatingTip(true);
+    // Simulate AI "thinking" delay
+    setTimeout(() => {
+      const availableTips = AI_TIPS.filter(t => t !== currentTip);
+      const randomTip = availableTips[Math.floor(Math.random() * availableTips.length)];
+      setCurrentTip(randomTip);
+      setIsAnimatingTip(false);
+    }, 500);
+  };
+
   return (
     <div className="h-full bg-gradient-to-b from-purple-50 to-white flex flex-col overflow-y-auto">
       {/* Header */}
@@ -52,7 +81,7 @@ export function DashboardScreen({ navigateTo, userData }: ScreenProps) {
               />
             </div>
             <div className="flex-1">
-              <h2 className="font-bold text-lg">Hey, Champion! 👋</h2>
+              <h2 className="font-bold text-lg">Hey, {userData.name || 'Champion'}! 👋</h2>
               <div className="flex items-center gap-2 mt-1">
                 <div
                   className="bg-white/30 backdrop-blur-sm px-3 py-1.5 rounded-full text-sm font-bold"
@@ -125,7 +154,7 @@ export function DashboardScreen({ navigateTo, userData }: ScreenProps) {
         <div className="bg-gradient-to-r from-cyan-500 to-blue-500 rounded-3xl shadow-2xl p-1">
           <div className="bg-white rounded-[22px] p-5">
             <div className="flex items-start gap-3 mb-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg">
+              <div className={`w-12 h-12 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg ${isAnimatingTip ? 'animate-pulse' : ''}`}>
                 <Bot className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
@@ -135,13 +164,17 @@ export function DashboardScreen({ navigateTo, userData }: ScreenProps) {
                     NEW
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Great job on your {userData.currentStreak}-day streak! Our AI noticed you brush best in the morning. Try setting a reminder for evening brushing to double your progress! 🌟
+                <p className={`text-sm text-gray-600 leading-relaxed transition-opacity duration-300 ${isAnimatingTip ? 'opacity-0' : 'opacity-100'}`}>
+                  {currentTip}
                 </p>
               </div>
             </div>
-            <button className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm">
-              🤖 Get More AI Tips
+            <button
+              onClick={getNewTip}
+              disabled={isAnimatingTip}
+              className="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-bold rounded-xl hover:shadow-lg hover:scale-105 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-70"
+            >
+              {isAnimatingTip ? 'Thinking...' : '🤖 Get New AI Tip'}
             </button>
           </div>
         </div>
@@ -166,30 +199,81 @@ export function DashboardScreen({ navigateTo, userData }: ScreenProps) {
           </div>
         </button>
 
-        {/* Learning Academy Banner */}
-        <button
-          onClick={() => navigateTo('learning-academy')}
-          className="w-full bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 rounded-3xl p-6 text-white shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95 relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-10 rounded-full -ml-12 -mb-12"></div>
-
-          <div className="flex items-center gap-4 relative z-10">
-            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border-2 border-white/40">
-              <Award className="w-8 h-8 text-white" />
-            </div>
-            <div className="flex-1 text-left">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-extrabold text-lg">Learning Academy</h3>
-                <span className="px-2 py-1 bg-white/30 backdrop-blur-sm text-white text-xs font-bold rounded-full">
-                  NEW
-                </span>
-              </div>
-              <p className="text-sm text-white/90">Complete courses with AI tutor & offline access!</p>
-            </div>
-            <div className="text-2xl">🎓</div>
+        {/* Featured Academy Course (Embedded Preview) */}
+        <div>
+          <div className="flex items-center justify-between mb-3 px-1">
+            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">
+              <Award className="w-5 h-5 text-purple-600" />
+              Learning Academy
+            </h3>
+            <button
+              onClick={() => navigateTo('learning-academy')}
+              className="text-purple-600 text-sm font-medium hover:underline"
+            >
+              View All
+            </button>
           </div>
-        </button>
+
+          {/* Show the first featured course as a preview */}
+          {(() => {
+            const featuredCourse = ACADEMY_COURSES[0];
+            return (
+              <div
+                onClick={() => window.open(featuredCourse.url, '_blank')}
+                className="bg-white rounded-2xl shadow-xl overflow-hidden cursor-pointer group hover:shadow-2xl transition-all border-2 border-transparent hover:border-purple-300"
+              >
+                <div className="relative h-48 w-full">
+                  <img
+                    src={featuredCourse.thumbnail}
+                    alt={featuredCourse.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-4">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="px-2 py-0.5 bg-purple-500 text-white text-xs font-bold rounded-full">
+                        FEATURED
+                      </span>
+                      {featuredCourse.aiRecommended && (
+                        <span className="px-2 py-0.5 bg-cyan-400 text-white text-xs font-bold rounded-full flex items-center gap-1">
+                          <Bot className="w-3 h-3" /> AI
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-white font-extrabold text-xl leading-tight mb-1">
+                      {featuredCourse.title}
+                    </h3>
+                    <p className="text-white/90 text-xs line-clamp-1">
+                      {featuredCourse.description}
+                    </p>
+                  </div>
+                  {/* Play Overlay */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                    <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                      <Play className="w-6 h-6 text-purple-600 ml-1" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 flex items-center justify-between text-xs text-gray-500 bg-white">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {featuredCourse.duration}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Users className="w-3 h-3" />
+                      {featuredCourse.students}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-amber-500 font-bold">
+                    <Star className="w-3 h-3 fill-amber-500" />
+                    {featuredCourse.rating}.0
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
 
         {/* Quick actions */}
         <div>

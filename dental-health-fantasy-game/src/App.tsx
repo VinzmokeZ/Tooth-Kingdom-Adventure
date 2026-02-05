@@ -1,98 +1,109 @@
 import { useState } from 'react';
 import { GameEngine } from './components/games';
 
-function App() {
-  const [selectedChapter, setSelectedChapter] = useState<number | null>(null);
-  const [completedChapters, setCompletedChapters] = useState<number[]>([]);
-
-  const chapters = [
-    { id: 1, title: 'Enamel Castle Siege', description: 'Defend your castle from plaque monsters!', emoji: '🏰', color: 'from-purple-500 to-indigo-600' },
-    { id: 2, title: 'Sugar Bug Invasion', description: 'Tap the bacteria before they reach your tooth!', emoji: '🦠', color: 'from-pink-500 to-purple-600' },
-    { id: 3, title: 'Royal Rope Rescue', description: 'Guide the floss through the gaps!', emoji: '🧵', color: 'from-cyan-500 to-blue-600' },
-    { id: 4, title: 'The King\'s Banquet', description: 'Sort healthy and sugary foods!', emoji: '👑', color: 'from-amber-500 to-orange-600' },
-    { id: 5, title: 'Wise Knight\'s Trial', description: 'Test your dental knowledge!', emoji: '⚔️', color: 'from-indigo-500 to-purple-600' },
-  ];
-
-  const handleComplete = (score: number, stars: number) => {
-    console.log(`Game completed! Score: ${score}, Stars: ${stars}`);
-    if (selectedChapter && !completedChapters.includes(selectedChapter)) {
-      setCompletedChapters([...completedChapters, selectedChapter]);
-    }
-    setSelectedChapter(null);
-  };
-
-  // If a chapter is selected, show the game
-  if (selectedChapter) {
-    return (
-      <div className="w-full h-screen bg-gray-900">
-        <GameEngine
-          chapterId={selectedChapter}
-          onExit={() => setSelectedChapter(null)}
-          onComplete={handleComplete}
-        />
-      </div>
-    );
-  }
-
-  // Chapter selection screen
+// This simulates your PhoneFrame component
+function PhoneFrame({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-900 via-indigo-900 to-purple-900 p-6">
-      <div className="max-w-md mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-black text-white mb-2">
-            🦷 Tooth Kingdom
-          </h1>
-          <p className="text-purple-300">Choose your adventure!</p>
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+      <div className="relative bg-black rounded-[3.5rem] p-3.5 shadow-2xl">
+        {/* Notch */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 bg-black h-7 w-40 rounded-b-3xl z-20 flex items-end justify-center pb-1">
+          <div className="w-14 h-1 bg-gray-900 rounded-full"></div>
+        </div>
+        
+        {/* Screen - 375x812 fixed size */}
+        <div className="relative bg-white rounded-[3rem] overflow-hidden w-[375px] h-[812px]">
+          {children}
         </div>
 
-        {/* Chapters */}
-        <div className="space-y-4">
-          {chapters.map((chapter, index) => {
-            const isLocked = index > 0 && !completedChapters.includes(chapters[index - 1].id);
-            const isCompleted = completedChapters.includes(chapter.id);
-
-            return (
-              <button
-                key={chapter.id}
-                onClick={() => !isLocked && setSelectedChapter(chapter.id)}
-                disabled={isLocked}
-                className={`w-full p-4 rounded-2xl text-left transition-all ${
-                  isLocked 
-                    ? 'bg-gray-800/50 opacity-50 cursor-not-allowed' 
-                    : `bg-gradient-to-r ${chapter.color} hover:scale-[1.02] active:scale-[0.98]`
-                } shadow-lg`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="text-4xl">{chapter.emoji}</div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-white">{chapter.title}</h3>
-                      {isCompleted && <span className="text-yellow-300">⭐</span>}
-                      {isLocked && <span className="text-white/60">🔒</span>}
-                    </div>
-                    <p className="text-white/70 text-sm">{chapter.description}</p>
-                  </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Progress */}
-        <div className="mt-8 text-center">
-          <p className="text-purple-300 text-sm">
-            Progress: {completedChapters.length}/{chapters.length} chapters
-          </p>
-          <div className="mt-2 h-2 bg-purple-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-yellow-400 to-orange-500 transition-all"
-              style={{ width: `${(completedChapters.length / chapters.length) * 100}%` }}
-            />
-          </div>
-        </div>
+        {/* Side buttons */}
+        <div className="absolute -left-1 top-24 w-1 h-8 bg-black rounded-l"></div>
+        <div className="absolute -left-1 top-36 w-1 h-16 bg-black rounded-l"></div>
+        <div className="absolute -right-1 top-32 w-1 h-16 bg-black rounded-r"></div>
       </div>
     </div>
+  );
+}
+
+// This simulates your ChaptersScreen
+function ChaptersScreen({ 
+  onStartChapter 
+}: { 
+  onStartChapter: (id: number) => void 
+}) {
+  const chapters = [
+    { id: 1, title: 'Enamel Castle Siege', description: 'Defend your castle from plaque monsters!', emoji: '🏰', color: 'from-purple-500 to-indigo-600', stars: 3 },
+    { id: 2, title: 'Sugar Bug Invasion', description: 'Tap the bacteria before they reach your tooth!', emoji: '🦠', color: 'from-pink-500 to-purple-600', stars: 3 },
+    { id: 3, title: 'Royal Rope Rescue', description: 'Guide the floss through the gaps!', emoji: '🧵', color: 'from-cyan-500 to-blue-600', stars: 3 },
+    { id: 4, title: 'The King\'s Banquet', description: 'Sort healthy and sugary foods!', emoji: '👑', color: 'from-amber-500 to-orange-600', stars: 3 },
+    { id: 5, title: 'Wise Knight\'s Trial', description: 'Test your dental knowledge!', emoji: '⚔️', color: 'from-indigo-500 to-purple-600', stars: 3 },
+  ];
+
+  return (
+    <div className="absolute inset-0 bg-white flex flex-col">
+      {/* Header */}
+      <div className="bg-gradient-to-r from-purple-500 to-purple-600 px-5 pt-12 pb-6">
+        <h1 className="text-2xl font-extrabold text-white">🦷 Tooth Kingdom</h1>
+        <p className="text-purple-200 text-sm mt-1">Choose your adventure!</p>
+      </div>
+
+      {/* Chapters List */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {chapters.map((chapter) => (
+          <button
+            key={chapter.id}
+            onClick={() => onStartChapter(chapter.id)}
+            className={`w-full p-4 rounded-2xl bg-gradient-to-r ${chapter.color} shadow-lg active:scale-[0.98] transition-transform`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="text-3xl">{chapter.emoji}</div>
+              <div className="flex-1 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full text-white font-medium">
+                    Chapter {chapter.id}
+                  </span>
+                  <span className="text-yellow-300 text-xs">⭐ {chapter.stars}</span>
+                </div>
+                <h3 className="font-bold text-white text-sm mt-1">{chapter.title}</h3>
+                <p className="text-white/70 text-xs mt-0.5">{chapter.description}</p>
+              </div>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function App() {
+  const [activeChapterId, setActiveChapterId] = useState<number | null>(null);
+
+  const handleGameExit = () => {
+    setActiveChapterId(null);
+  };
+
+  const handleGameComplete = (score: number, stars: number) => {
+    console.log(`Game completed! Score: ${score}, Stars: ${stars}`);
+    // Here you would update userData, save progress, etc.
+    setActiveChapterId(null);
+  };
+
+  return (
+    <PhoneFrame>
+      {activeChapterId ? (
+        // Game is active - show fullscreen game
+        <div className="absolute inset-0 z-50 bg-white overflow-hidden">
+          <GameEngine
+            chapterId={activeChapterId}
+            onExit={handleGameExit}
+            onComplete={handleGameComplete}
+          />
+        </div>
+      ) : (
+        // Show chapter selection
+        <ChaptersScreen onStartChapter={setActiveChapterId} />
+      )}
+    </PhoneFrame>
   );
 }
 

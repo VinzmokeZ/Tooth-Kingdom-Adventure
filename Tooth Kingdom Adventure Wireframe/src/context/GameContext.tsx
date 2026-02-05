@@ -24,6 +24,12 @@ const defaultUserData: UserData = {
   unlockedRewards: [],
   brushingLogs: {},
   lastBrushedTimestamp: null,
+  name: 'Tooth Defender',
+  settings: {
+    darkMode: false,
+    notifications: true,
+    sound: true,
+  },
 };
 
 const GameContext = createContext<GameContextType | undefined>(undefined);

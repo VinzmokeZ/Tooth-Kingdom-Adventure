@@ -153,7 +153,7 @@ export function WiseKnightsTrial({ onComplete, onExit }: GameProps) {
   const stars = score >= 400 ? 3 : score >= 250 ? 2 : 1;
 
   return (
-    <div className="w-full h-full bg-gradient-to-b from-indigo-500 via-purple-600 to-violet-700 flex flex-col overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-indigo-500 via-purple-600 to-violet-700 flex flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {screen === 'start' && (
           <motion.div

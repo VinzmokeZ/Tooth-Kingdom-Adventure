@@ -26,7 +26,7 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
         {/* Account section */}
         <div className="px-5 py-4 border-b-8 border-gray-100">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3">Account</h3>
-          
+
           <button
             onClick={() => navigateTo('profile')}
             className="w-full flex items-center gap-4 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all"
@@ -43,7 +43,7 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
         {/* Preferences section */}
         <div className="px-5 py-4 border-b-8 border-gray-100">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3">Preferences</h3>
-          
+
           <div className="space-y-2">
             <button
               onClick={() => navigateTo('notifications')}
@@ -56,7 +56,10 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </button>
 
-            <button className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <button
+              onClick={() => window.alert('Language settings coming soon!')}
+              className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all"
+            >
               <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
                 <Globe className="w-5 h-5 text-purple-600" />
               </div>
@@ -67,7 +70,10 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               </div>
             </button>
 
-            <button className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <button
+              onClick={() => window.alert('Language settings coming soon!')}
+              className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all"
+            >
               <div className="w-10 h-10 bg-green-100 rounded-xl flex items-center justify-center">
                 <Shield className="w-5 h-5 text-green-600" />
               </div>
@@ -80,7 +86,7 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
         {/* App settings */}
         <div className="px-5 py-4 border-b-8 border-gray-100">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3">App Settings</h3>
-          
+
           <div className="space-y-2">
             <div className="flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm">
               <div className="flex items-center gap-3">
@@ -91,13 +97,11 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               </div>
               <button
                 onClick={() => setSoundEnabled(!soundEnabled)}
-                className={`relative w-14 h-8 rounded-full transition-all ${
-                  soundEnabled ? 'bg-purple-600' : 'bg-gray-300'
-                }`}
+                className={`relative w-14 h-8 rounded-full transition-all ${soundEnabled ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${
-                  soundEnabled ? 'left-7' : 'left-1'
-                }`}></div>
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${soundEnabled ? 'left-7' : 'left-1'
+                  }`}></div>
               </button>
             </div>
 
@@ -110,13 +114,11 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               </div>
               <button
                 onClick={() => setNotificationsEnabled(!notificationsEnabled)}
-                className={`relative w-14 h-8 rounded-full transition-all ${
-                  notificationsEnabled ? 'bg-purple-600' : 'bg-gray-300'
-                }`}
+                className={`relative w-14 h-8 rounded-full transition-all ${notificationsEnabled ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${
-                  notificationsEnabled ? 'left-7' : 'left-1'
-                }`}></div>
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${notificationsEnabled ? 'left-7' : 'left-1'
+                  }`}></div>
               </button>
             </div>
 
@@ -129,13 +131,11 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               </div>
               <button
                 onClick={() => setDarkMode(!darkMode)}
-                className={`relative w-14 h-8 rounded-full transition-all ${
-                  darkMode ? 'bg-purple-600' : 'bg-gray-300'
-                }`}
+                className={`relative w-14 h-8 rounded-full transition-all ${darkMode ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${
-                  darkMode ? 'left-7' : 'left-1'
-                }`}></div>
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${darkMode ? 'left-7' : 'left-1'
+                  }`}></div>
               </button>
             </div>
 
@@ -148,13 +148,11 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               </div>
               <button
                 onClick={() => setAiAssistantEnabled(!aiAssistantEnabled)}
-                className={`relative w-14 h-8 rounded-full transition-all ${
-                  aiAssistantEnabled ? 'bg-purple-600' : 'bg-gray-300'
-                }`}
+                className={`relative w-14 h-8 rounded-full transition-all ${aiAssistantEnabled ? 'bg-purple-600' : 'bg-gray-300'
+                  }`}
               >
-                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${
-                  aiAssistantEnabled ? 'left-7' : 'left-1'
-                }`}></div>
+                <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all ${aiAssistantEnabled ? 'left-7' : 'left-1'
+                  }`}></div>
               </button>
             </div>
           </div>
@@ -168,7 +166,7 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               NEW
             </span>
           </div>
-          
+
           <div className="space-y-2">
             <button
               onClick={() => navigateTo('learning-academy')}
@@ -258,9 +256,12 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
         {/* Support section */}
         <div className="px-5 py-4 border-b-8 border-gray-100">
           <h3 className="text-xs font-bold text-gray-500 uppercase mb-3">Support</h3>
-          
+
           <div className="space-y-2">
-            <button className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <button
+              onClick={() => window.alert('Language settings coming soon!')}
+              className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all"
+            >
               <div className="w-10 h-10 bg-cyan-100 rounded-xl flex items-center justify-center">
                 <HelpCircle className="w-5 h-5 text-cyan-600" />
               </div>
@@ -268,7 +269,10 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
               <ChevronRight className="w-5 h-5 text-gray-400" />
             </button>
 
-            <button className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all">
+            <button
+              onClick={() => window.alert('Language settings coming soon!')}
+              className="w-full flex items-center gap-3 p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all"
+            >
               <div className="w-10 h-10 bg-rose-100 rounded-xl flex items-center justify-center">
                 <Info className="w-5 h-5 text-rose-600" />
               </div>
@@ -283,7 +287,10 @@ export function SettingsScreen({ navigateTo, userData }: ScreenProps) {
           <p className="text-center text-sm text-gray-400 mb-4">
             Tooth Kingdom Adventure v1.0.0
           </p>
-          <button className="w-full h-12 bg-red-50 text-red-600 rounded-2xl font-medium hover:bg-red-100 transition-all">
+          <button
+            onClick={() => window.alert('Log out functionality coming soon!')}
+            className="w-full h-12 bg-red-50 text-red-600 rounded-2xl font-medium hover:bg-red-100 transition-all"
+          >
             Sign Out
           </button>
         </div>

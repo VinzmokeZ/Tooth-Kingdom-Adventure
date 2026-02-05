@@ -107,7 +107,7 @@ export function RoyalRopeRescue({ onComplete, onExit }: GameProps) {
   const stars = score >= 400 ? 3 : score >= 250 ? 2 : 1;
 
   return (
-    <div className="w-full h-full bg-gradient-to-b from-cyan-400 via-blue-500 to-indigo-600 flex flex-col overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-cyan-400 via-blue-500 to-indigo-600 flex flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {screen === 'start' && (
           <motion.div

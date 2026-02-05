@@ -133,7 +133,7 @@ export function EnamelCastleSiege({ onComplete, onExit }: GameProps) {
   };
 
   return (
-    <div className="w-full h-full bg-gradient-to-b from-purple-900 via-purple-800 to-indigo-900 flex flex-col overflow-hidden">
+    <div className="absolute inset-0 w-full h-full bg-gradient-to-b from-purple-900 via-purple-800 to-indigo-900 flex flex-col overflow-hidden">
       <AnimatePresence mode="wait">
         {screen === 'start' && (
           <motion.div
