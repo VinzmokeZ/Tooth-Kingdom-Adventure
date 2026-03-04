@@ -1,27 +1,49 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ScreenProps } from './types';
 import { ArrowLeft, Shield, Sparkles, RefreshCw } from 'lucide-react';
-import logo from 'figma:asset/5b0695099dfd67c35f14fc4f047da4df5ed6aa0e.png';
+import { useAuth } from '../../context/AuthContext';
+import { USE_LOCAL_BACKEND } from '../../lib/firebase';
 
 export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
+  const { confirmationResult, verifyOTPLocal } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
-  const [resendTimer, setResendTimer] = useState(30);
+  const [error, setError] = useState<string | null>(null);
+  const [resendTimer, setResendTimer] = useState(10);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [mockSMS, setMockSMS] = useState<{ phone: string, code: string } | null>(null);
 
   useEffect(() => {
     // Focus first input on mount
     inputRefs.current[0]?.focus();
+
+    // Show initial OTP notification on mount (Simulate receiving the first SMS)
+    const storedOtp = localStorage.getItem('mockOTP');
+    const storedPhone = localStorage.getItem('mockOTPPhone') || 'Hero';
+    if (storedOtp) {
+      setTimeout(() => {
+        setMockSMS({ phone: storedPhone, code: storedOtp });
+        // Hide after 10s
+        setTimeout(() => setMockSMS(null), 10000);
+      }, 500); // Slight delay for effect
+    }
+  }, []);
+
+  useEffect(() => {
+    // Redirect if no confirmation result (hero tried to jump link)
+    if (!confirmationResult && process.env.NODE_ENV === 'production' && !USE_LOCAL_BACKEND) {
+      navigateTo('signin');
+    }
 
     // Timer for resend
     if (resendTimer > 0) {
       const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
       return () => clearTimeout(timer);
     }
-  }, [resendTimer]);
+  }, [resendTimer, confirmationResult]);
 
   const handleChange = (index: number, value: string) => {
-    if (value.length > 1) return;
+    if (value.length > 1 || !/^\d*$/.test(value)) return;
 
     const newOtp = [...otp];
     newOtp[index] = value;
@@ -34,7 +56,7 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
 
     // Auto-verify when all filled
     if (newOtp.every(digit => digit !== '') && index === 5) {
-      handleVerify(newOtp);
+      handleVerify(newOtp.join(''));
     }
   };
 
@@ -44,18 +66,80 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
     }
   };
 
-  const handleVerify = async (otpToVerify = otp) => {
+  const handleVerify = async (codeToVerify = otp.join('')) => {
+    if (codeToVerify.length !== 6) return;
+
+    setError(null);
     setIsVerifying(true);
-    // Simulate verification
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    setIsVerifying(false);
-    navigateTo('onboarding');
+
+    try {
+      if (USE_LOCAL_BACKEND) {
+        const phone = (window as any).localOTPPhone || 'Hero';
+        await verifyOTPLocal(phone, codeToVerify);
+
+        // Role-based navigation after mock verification
+        const storedUser = localStorage.getItem('currentUser');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          if (user.role === 'parent') {
+            navigateTo('parent-dashboard');
+            return;
+          } else if (user.role === 'teacher') {
+            navigateTo('teacher-dashboard');
+            return;
+          }
+        }
+
+        navigateTo('onboarding');
+        return;
+      }
+
+      if (!confirmationResult) {
+        // For development/demo if navigated directly
+        console.log("No confirmation result, using demo skip");
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        navigateTo('onboarding');
+        return;
+      }
+
+      await confirmationResult.confirm(codeToVerify);
+      // Success! AuthContext will update currentUser, GameContext will handle Firestore
+      navigateTo('onboarding');
+    } catch (err: any) {
+      console.error("Verification failed:", err);
+      setError(err.message === 'Firebase: Error (auth/invalid-verification-code).'
+        ? "Oops! That code doesn't look right. Please check your text messages! 📱"
+        : err.message);
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   const handleResend = () => {
-    setResendTimer(30);
-    setOtp(['', '', '', '', '', '']);
-    inputRefs.current[0]?.focus();
+    // Generate new mock OTP
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const phone = localStorage.getItem('mockOTPPhone') || 'Hero';
+
+    // Log to backend if connected
+    try {
+      fetch(`${USE_LOCAL_BACKEND ? 'http://127.0.0.1:8000' : ''}/debug/log`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `RESEND OTP for ${phone}: ${newOtp}` })
+      }).catch(() => { });
+    } catch (e) { }
+
+    // Update local storage
+    localStorage.setItem('mockOTP', newOtp);
+
+    // Show notification
+    setMockSMS({ phone, code: newOtp });
+
+    // Reset timer
+    setResendTimer(10);
+
+    // Hide notification after 10s
+    setTimeout(() => setMockSMS(null), 10000);
   };
 
   return (
@@ -92,20 +176,17 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
               </div>
             </div>
             <h1 className="text-3xl font-extrabold text-gray-900 mb-2">
-              Verification Code
+              Kingdom Guard
             </h1>
             <p className="text-gray-600 text-sm px-4">
-              We've sent a magic code to your email to keep your Tooth Kingdom safe! 🦷✨
-            </p>
-            <p className="text-purple-600 font-semibold text-sm mt-2">
-              hero@toothkingdom.com
+              We've sent a 6-digit verification code to your phone. Enter it to enter the Kingdom! 🛡️✨
             </p>
           </div>
 
           {/* OTP Input Card */}
           <div className="bg-white rounded-3xl shadow-2xl p-8 backdrop-blur-sm border-2 border-purple-100 mb-6">
             {/* OTP Input */}
-            <div className="flex justify-center gap-3 mb-6">
+            <div className="flex justify-center gap-2 mb-6">
               {otp.map((digit, index) => (
                 <input
                   key={index}
@@ -116,11 +197,18 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
                   value={digit}
                   onChange={(e) => handleChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className={`w-12 h-14 text-center text-2xl font-bold bg-gray-50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${digit ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
+                  disabled={isVerifying}
+                  className={`w-10 h-14 text-center text-2xl font-bold bg-gray-50 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all ${digit ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
                     }`}
                 />
               ))}
             </div>
+
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 text-red-600 text-xs rounded-xl text-center border border-red-100">
+                {error}
+              </div>
+            )}
 
             {/* Verify Button */}
             <button
@@ -134,31 +222,23 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
               {isVerifying ? (
                 <span className="flex items-center justify-center gap-2">
                   <RefreshCw className="w-5 h-5 animate-spin" />
-                  Verifying...
+                  Gaining Entry...
                 </span>
               ) : (
-                '🚀 Verify & Continue'
+                '🛡️ Enter Kingdom'
               )}
             </button>
 
             {/* Resend */}
             <div className="mt-6 text-center">
-              {resendTimer > 0 ? (
-                <p className="text-sm text-gray-500">
-                  Didn't receive code?{' '}
-                  <span className="text-purple-600 font-semibold">
-                    Resend in {resendTimer}s
-                  </span>
-                </p>
-              ) : (
-                <button
-                  onClick={handleResend}
-                  className="text-sm text-purple-600 font-semibold hover:text-purple-700 flex items-center justify-center gap-2 mx-auto"
-                >
-                  <RefreshCw className="w-4 h-4" />
-                  Resend Code
-                </button>
-              )}
+              <button
+                onClick={handleResend}
+                disabled={resendTimer > 0}
+                className={`text-sm font-semibold flex items-center justify-center gap-2 mx-auto ${resendTimer > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-purple-600 hover:text-purple-700'
+                  }`}
+              >
+                {resendTimer > 0 ? `Resend code in ${resendTimer}s` : "Didn't receive code? Try again"}
+              </button>
             </div>
           </div>
 
@@ -170,10 +250,10 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
               </div>
               <div>
                 <h3 className="font-bold text-gray-900 text-sm mb-1">
-                  AI Security Tip 💡
+                  AI Guard Tip 💡
                 </h3>
                 <p className="text-xs text-gray-700">
-                  Never share your verification code with anyone! Our AI protects your account 24/7 to keep your kingdom safe.
+                  Real Heroes never share their codes! This code is for your phone only.
                 </p>
               </div>
             </div>
@@ -181,9 +261,42 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
         </div>
       </div>
 
+      {/* Mock SMS Notification for Simulator */}
+      {mockSMS && (
+        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 w-[90%] max-w-sm bg-black text-white p-4 rounded-2xl shadow-2xl z-50 animate-slideDown border-2 border-green-500/50">
+          <div className="flex items-start gap-3">
+            <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0 animate-pulse">
+              <span className="text-2xl">💬</span>
+            </div>
+            <div className="flex-1">
+              <h4 className="font-extrabold text-green-400 text-sm uppercase tracking-wider">New Message</h4>
+              <p className="text-xs font-medium text-gray-300 mt-1">
+                Your verification code is:
+              </p>
+              <div className="text-3xl font-black text-white tracking-[0.2em] mt-1 text-shadow-glow">
+                {mockSMS.code}
+              </div>
+            </div>
+            <button
+              onClick={() => setMockSMS(null)}
+              className="p-1 hover:bg-white/10 rounded-full"
+            >
+              <span className="text-gray-400 font-bold">✕</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Animated styles */}
       <style dangerouslySetInnerHTML={{
         __html: `
+        @keyframes slideDown {
+          from { transform: translate(-50%, -100%); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+        }
         @keyframes float {
           0%, 100% {
             transform: translateY(0px) rotate(0deg);
