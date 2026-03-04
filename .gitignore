@@ -1,0 +1,32 @@
+# Dependency directories
+node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Secrets and Prompts (CRITICAL)
+Prompts/
+*.txt
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+
+# Android/Capacitor specific
+/android/
+/ios/
+/electron/
+/dist/
+/www/
