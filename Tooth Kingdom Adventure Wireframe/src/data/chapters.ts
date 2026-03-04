@@ -1,3 +1,13 @@
+import thumbnailHero from '../assets/tooth_kingdom_bg.png';
+import assetBrushingBasics from '../assets/brushing_basics.png';
+import assetSugarMonsters from '../assets/sugar_monsters.png';
+import assetColoringBook from '../assets/coloring_book.png';
+import assetNutritionGuide from '../assets/nutrition_guide.png';
+import assetWorksheets from '../assets/worksheets.png';
+import assetMouthBg from '../assets/mouth_bg.png';
+import assetChapter6 from '../assets/chapter6.png';
+import assetChapter5 from '../assets/chapter5.png';
+
 export interface Chapter {
     id: number;
     title: string;
@@ -10,33 +20,36 @@ export interface Chapter {
     illustration: string;
     gameType?: string; // Identifier for the mini-game
     gameConfig?: any; // Specific config for the game
+    gameUrl?: string; // External URL for iframe games
 }
 
 export const chapters: Chapter[] = [
     {
         id: 1,
-        title: 'The Brushing Basics Adventure',
-        description: 'Join our hero at the gates of the Enamel Castle. Learn why we brush and master the ancient circular technique to defeat the Plaque Monsters!',
+        title: 'Cavity Miner Adventure',
+        description: 'Dig deep into the tooth to find and remove hidden cavities! Use the virtual D-Pad to move.',
         lessons: 5,
         stars: 15,
         completed: true,
         locked: false,
         color: 'from-purple-100 to-purple-50',
-        illustration: 'https://images.unsplash.com/photo-1649293823459-094749e377d5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXJ0b29uJTIwY2FzdGxlJTIwZmFudGFzeSUyMGNoaWxkcmVufGVufDF8fHx8MTc2OTE1MDk3Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-        gameType: 'brushing-fantasy',
-        gameConfig: { plaqueAmount: 10, timeLimit: 30 }
+        illustration: assetBrushingBasics,
+        gameType: 'external',
+        gameUrl: '/games/cavity-miner/index.html',
+        gameConfig: { targetScore: 500, timeLimit: 120 }
     },
     {
         id: 2,
-        title: 'The Sugar Bugs Attack',
-        description: 'Discover how to fight cavity-causing bacteria and protect your tooth kingdom from the sugar bug invasion!',
+        title: 'Shark Dentist Challenge',
+        description: 'Help the royal shark keep his teeth clean! Use your precision to brush and extract rotted teeth before the timer runs out.',
         lessons: 6,
         stars: 18,
         completed: true,
         locked: false,
         color: 'from-blue-100 to-blue-50',
-        illustration: 'https://images.unsplash.com/photo-1563802287254-0b0a9943d36f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjYXJ0b29uJTIwYnVncyUyMG1vbnN0ZXJzJTIwY3JlYXR1cmVzfGVufDF8fHx8MTc2OTE1MDk3Nnww&ixlib=rb-4.1.0&q=80&w=1080',
-        gameType: 'germs-fantasy',
+        illustration: assetSugarMonsters,
+        gameType: 'external',
+        gameUrl: '/games/shark-dentist/index.html',
         gameConfig: { germSpeed: 1.5, spawnRate: 1000 }
     },
     {
@@ -48,7 +61,7 @@ export const chapters: Chapter[] = [
         completed: false,
         locked: false,
         color: 'from-pink-100 to-pink-50',
-        illustration: 'https://images.unsplash.com/photo-1766156555244-572b9757433b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmYW50YXN5JTIwYWR2ZW50dXJlJTIwbWFnaWNhbCUyMGtpbmdkb218ZW58MXx8fHwxNzY5MTUwOTc3fDA&ixlib=rb-4.1.0&q=80&w=1080',
+        illustration: assetColoringBook,
         gameType: 'flossing-fantasy',
         gameConfig: {}
     },
@@ -61,7 +74,7 @@ export const chapters: Chapter[] = [
         completed: false,
         locked: true,
         color: 'from-green-100 to-green-50',
-        illustration: 'https://images.unsplash.com/photo-1568477070631-5bfef06fdf44?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxoZWFsdGh5JTIwZnJ1aXRzJTIwdmVnZXRhYmxlcyUyMGNvbG9yZnVsfGVufDF8fHx8MTc2OTE1MDk3N3ww&ixlib=rb-4.1.0&q=80&w=1080',
+        illustration: assetNutritionGuide,
         gameType: 'food-sort-fantasy',
         gameConfig: {}
     },
@@ -72,10 +85,25 @@ export const chapters: Chapter[] = [
         lessons: 8,
         stars: 24,
         completed: false,
-        locked: true,
+        locked: false,
         color: 'from-amber-100 to-amber-50',
-        illustration: 'https://images.unsplash.com/photo-1739323980445-b76a6e459d0b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjcm93biUyMHRyb3BoeSUyMGFjaGlldmVtZW50JTIwZ29sZHxlbnwxfHx8fDE3NjkxNTA5ODB8MA&ixlib=rb-4.1.0&q=80&w=1080',
-        gameType: 'quiz-master-fantasy',
+        illustration: assetChapter5,
+        gameType: 'external',
+        gameUrl: '/games/plaque-pluck/index.html',
         gameConfig: {}
+    },
+    {
+        id: 6,
+        title: 'Beatrix: Battle Dentist',
+        description: 'Join Beatrix, the last Battle Dentist, in a retro-style quest to defend the kingdom from dental decay! Use your tools to blast away the grime.',
+        lessons: 4,
+        stars: 12,
+        completed: false,
+        locked: true,
+        color: 'from-cyan-100 to-cyan-50',
+        illustration: assetChapter6,
+        gameType: 'external',
+        gameUrl: '/games/beatrix-dentist/index.html',
+        gameConfig: { dirtCount: 15 }
     },
 ];

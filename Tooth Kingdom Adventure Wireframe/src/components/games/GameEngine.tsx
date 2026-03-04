@@ -4,6 +4,9 @@ import { SugarBugInvasion } from './SugarBugInvasion';
 import { RoyalRopeRescue } from './RoyalRopeRescue';
 import { KingsBanquet } from './KingsBanquet';
 import { WiseKnightsTrial } from './WiseKnightsTrial';
+import { DeepCleanChallenge } from './DeepCleanChallenge';
+import { ExternalGameWrapper } from './ExternalGameWrapper';
+import { chapters } from '../../data/chapters';
 
 interface GameEngineProps {
   chapterId: number;
@@ -13,12 +16,15 @@ interface GameEngineProps {
 
 // Map chapter IDs to games
 // Chapter 1: Brushing - Enamel Castle Siege
-// Chapter 2: Bacteria - Sugar Bug Invasion
+// Chapter 2: Bacteria - Shark Dentist (External)
 // Chapter 3: Flossing - Royal Rope Rescue
 // Chapter 4: Nutrition - King's Banquet
 // Chapter 5: Mastery - Wise Knight's Trial
 
 export function GameEngine({ chapterId, onExit, onComplete }: GameEngineProps) {
+  // Find chapter data
+  const chapterData = chapters.find(c => c.id === chapterId);
+
   // Common wrapper for all games - ensures proper sizing within PhoneFrame
   const GameWrapper = ({ children }: { children: React.ReactNode }) => (
     <div className="absolute inset-0 w-full h-full overflow-hidden">
@@ -29,6 +35,18 @@ export function GameEngine({ chapterId, onExit, onComplete }: GameEngineProps) {
   // Render the appropriate game based on chapter ID
   switch (chapterId) {
     case 1:
+      if (chapterData?.gameType === 'external' && chapterData.gameUrl) {
+        return (
+          <GameWrapper>
+            <ExternalGameWrapper
+              url={chapterData.gameUrl}
+              chapterId={chapterId}
+              onComplete={onComplete}
+              onExit={onExit}
+            />
+          </GameWrapper>
+        );
+      }
       return (
         <GameWrapper>
           <EnamelCastleSiege
@@ -39,6 +57,19 @@ export function GameEngine({ chapterId, onExit, onComplete }: GameEngineProps) {
       );
 
     case 2:
+      if (chapterData?.gameType === 'external' && chapterData.gameUrl) {
+        return (
+          <GameWrapper>
+            <ExternalGameWrapper
+              url={chapterData.gameUrl}
+              chapterId={chapterId}
+              onComplete={onComplete}
+              onExit={onExit}
+            />
+          </GameWrapper>
+        );
+      }
+      // Fallback to original if data is missing
       return (
         <GameWrapper>
           <SugarBugInvasion
@@ -72,6 +103,28 @@ export function GameEngine({ chapterId, onExit, onComplete }: GameEngineProps) {
       return (
         <GameWrapper>
           <WiseKnightsTrial
+            onComplete={onComplete}
+            onExit={onExit}
+          />
+        </GameWrapper>
+      );
+
+    case 6:
+      if (chapterData?.gameType === 'external' && chapterData.gameUrl) {
+        return (
+          <GameWrapper>
+            <ExternalGameWrapper
+              url={chapterData.gameUrl}
+              chapterId={chapterId}
+              onComplete={onComplete}
+              onExit={onExit}
+            />
+          </GameWrapper>
+        );
+      }
+      return (
+        <GameWrapper>
+          <DeepCleanChallenge
             onComplete={onComplete}
             onExit={onExit}
           />
