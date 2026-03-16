@@ -1,0 +1,2 @@
+﻿src/components/screens/LearningAcademyScreen.tsx(453,78): error TS2339: Property 'rating' does not exist on type 'PDFResource'.
+src/components/screens/LearningAcademyScreen.tsx(457,36): error TS2339: Property 'views' does not exist on type 'PDFResource'.

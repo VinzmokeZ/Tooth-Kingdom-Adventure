@@ -20,8 +20,14 @@ www/
 Credentials/
 _legacy/
 backup_20260202/
+Prompts/
+FIX/
+desktop web app/
+Netlify-Web-Version/
 *.jks
 *.keystore
+*.p12
+*.pem
 
 # Logs
 logs/
