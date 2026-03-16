@@ -1,0 +1,617 @@
+import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { FilesetResolver, FaceLandmarker, HandLandmarker } from '@mediapipe/tasks-vision';
+import * as Kalidokit from 'kalidokit';
+
+/**
+ * VTuberBrushingQuest - Final Build V7
+ * Focuses on AI tracking and rendering with perfect zoom.
+ * Game logic and UI moved to parent.
+ */
+
+const AVATARS = {
+    HIYORI: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@master/test/assets/hiyori/hiyori_pro_t10.model3.json',
+    TANU: 'https://cdn.jsdelivr.net/gh/guansss/pixi-live2d-display@master/test/assets/haru/haru_greeter_t03.model3.json'
+};
+
+const CURRENT_MODEL_KEY: 'HIYORI' | 'TANU' = 'TANU';
+const AVATAR_PATH = AVATARS[CURRENT_MODEL_KEY];
+
+interface VTuberBrushingQuestProps {
+    currentStepIndex: number;
+    onStepComplete?: () => void;
+    onTrackingUpdate?: (pos: { x: number, y: number } | null) => void;
+    // AI External Controls
+    onAIStateChange?: (state: { isRecording: boolean, isThinking: boolean, aiText: string, audioUnlocked: boolean }) => void;
+    externalInput?: string;
+    externalCommand?: string | null;
+    onStartRecording?: () => void;
+    onStopRecording?: () => void;
+    onSendText?: (text: string) => void;
+}
+
+export interface VTuberQuestHandle {
+    processAI: (text?: string | null, audio?: string | null) => void;
+    startRecording: () => void;
+    stopRecording: () => void;
+    unlockAudio: () => void;
+}
+
+export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTuberBrushingQuestProps>(({
+    currentStepIndex,
+    onStepComplete,
+    onTrackingUpdate,
+    onAIStateChange,
+    onStartRecording,
+    onStopRecording,
+    onSendText
+}, ref) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [modelLoaded, setModelLoaded] = useState(false);
+    const appRef = useRef<any>(null);
+    const modelRef = useRef<any>(null);
+    const faceLandmarkerRef = useRef<FaceLandmarker | null>(null);
+    const handLandmarkerRef = useRef<HandLandmarker | null>(null);
+    const requestRef = useRef<number>();
+    const [telemetry, setTelemetry] = useState<string[]>([]);
+
+    // AI States
+    const [isRecording, setIsRecording] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
+    const [aiText, setAiText] = useState("");
+    const isSpeakingRef = useRef(false);
+    const [inputText, setInputText] = useState("");
+    const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+    const audioChunksRef = useRef<Blob[]>([]);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const analyserRef = useRef<AnalyserNode | null>(null);
+    const audioUnlockedRef = useRef(false);
+    const [audioUnlocked, setAudioUnlocked] = useState(false);
+
+    // Audio Unlocker for Mobile/Android (Crucial for Cloud AI)
+    const unlockAudio = useCallback(() => {
+        if (audioUnlockedRef.current) return;
+
+        // 1. PRIME THE SPEECH ENGINE (Synchronous)
+        // This is the "Magic Key" for Android. By calling speak() synchronously 
+        // during a click, we pre-authorize the entire speech engine for the session.
+        if (window.speechSynthesis) {
+            const primer = new SpeechSynthesisUtterance("");
+            primer.volume = 0;
+            window.speechSynthesis.speak(primer);
+        }
+
+        // 2. PRIME THE WEB AUDIO CONTEXT
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+
+        if (audioContextRef.current.state === 'suspended') {
+            audioContextRef.current.resume();
+        }
+
+        // Play and immediately pause a silent buffer to unlock the hardware
+        const silentAudio = new Audio();
+        silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==';
+        silentAudio.play().then(() => {
+            silentAudio.pause();
+            audioUnlockedRef.current = true;
+            setAudioUnlocked(true);
+            log('Audio Engine Unlocked for Cloud Response');
+        }).catch(e => log(`Unlock Fail: ${e.message}`));
+    }, []);
+
+    useEffect(() => {
+        if (onAIStateChange) {
+            onAIStateChange({ isRecording, isThinking, aiText, audioUnlocked });
+        }
+    }, [isRecording, isThinking, aiText, audioUnlocked, onAIStateChange]);
+
+    const log = (msg: string) => {
+        console.log(`[VTUBER] ${msg}`);
+        const voiceStatus = window.speechSynthesis?.speaking ? "SPEAKING" : "SILENT";
+        setTelemetry(prev => [...prev.slice(-8), `${msg} | Voice: ${voiceStatus}`]);
+    };
+
+    // Lip Sync Logic
+    const initAudioAnalyser = (audio: HTMLAudioElement) => {
+        // PERMANENT FIX: Do NOT close the context. Reuse it to keep the hardware "hot"
+        if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        }
+        const audioContext = audioContextRef.current;
+
+        const source = audioContext.createMediaElementSource(audio);
+        const analyser = audioContext.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analyser.connect(audioContext.destination);
+        analyserRef.current = analyser;
+    };
+
+    const updateLipSync = (): number | null => {
+        if (!analyserRef.current || !modelRef.current) return null;
+        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
+        analyserRef.current.getByteFrequencyData(dataArray);
+
+        let maxVolume = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+            if (dataArray[i] > maxVolume) maxVolume = dataArray[i];
+        }
+
+        // If practically silent (buffering or gap), return null to fallback to webcam mouth
+        if (maxVolume < 10) return null;
+
+        return Math.min(1, maxVolume / 120); // More responsive scale
+    };
+
+    const startRecording = async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            const mediaRecorder = new MediaRecorder(stream);
+            mediaRecorderRef.current = mediaRecorder;
+            audioChunksRef.current = [];
+
+            mediaRecorder.ondataavailable = (event) => audioChunksRef.current.push(event.data);
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = () => {
+                    const base64Audio = (reader.result as string).split(',')[1];
+                    processAI(null, base64Audio);
+                };
+                stream.getTracks().forEach(t => t.stop());
+            };
+
+            mediaRecorder.start();
+            setIsRecording(true);
+        } catch (err) {
+            log(`Mic Error: ${err}`);
+        }
+    };
+
+    const stopRecording = () => {
+        if (mediaRecorderRef.current && isRecording) {
+            mediaRecorderRef.current.stop();
+            setIsRecording(false);
+        }
+    };
+
+    // OFFLINE MOCKUP DICTIONARY
+    // Used if the backend crashes, the user connects offline, or API limits hit.
+    const offlineMocks = [
+        { keys: ["hello", "hi ", "hey", "who"], answer: "Hello there! I'm Guide Tanu, your Royal Guide to the Tooth Kingdom! I'm here to help you keep your smile shining like a Diamond!" },
+        { keys: ["how", "brush", "properly", "way", "do i"], answer: "Master the circular motion! Brush in small, gentle circles for two whole minutes. It's like a royal dance for your teeth!" },
+        { keys: ["pain", "hurt", "bleed", "blood", "ache"], answer: "A royal toothache! Make sure to tell your parents right away so they can call the Tooth Kingdom dentist for a check-up!" },
+        { keys: ["sugar", "candy", "sweet", "chocolate"], answer: "Those sneaky Sugar Bugs love sweet treats! Always give your teeth a good royal brushing after eating candy!" },
+        { keys: ["why", "important", "cavity", "decay"], answer: "Brushing builds a strong enamel shield to protect you from the dark Sugar Bugs!" },
+        { keys: ["dentist", "doctor", "checkup"], answer: "The dentist is a knight who helps defend your Kingdom! It's good to visit them twice a year!" },
+        { keys: ["floss", "gap", "between"], answer: "Don't forget the hidden tunnels between your teeth! Flossing is the secret weapon against Sugar Bugs!" },
+    ];
+
+    const getOfflineResponse = (query: string) => {
+        const lower = query.toLowerCase();
+        for (const mock of offlineMocks) {
+            if (mock.keys.some(k => lower.includes(k))) return mock.answer;
+        }
+        return "Tanu is currently exploring the outer kingdoms! But remember: A clean tooth is a happy tooth! Keep brushing!";
+    };
+
+    const processAI = async (text?: string | null, audio?: string | null) => {
+        setIsThinking(true);
+        setAiText("Thinking...");
+
+        // Ensure audio is unlocked on first interaction
+        unlockAudio();
+
+        const fallbackOffline = (errMsg?: string) => {
+            const answer = text ? getOfflineResponse(text) : "Tanu is resting! Let's brush together!";
+            setAiText(answer);
+            playOfflineTTS(answer);
+            if (errMsg) log(`Cloud AI Error: ${errMsg}`);
+        };
+
+        // --- PHASE 0: INSTANT SYNCHRONOUS FALLBACK (Final Boss Fix) ---
+        // If it's a default question, we answer INSTANTLY before any network lag.
+        // This guarantees the "Trusted Gesture" is still active when we call speak().
+        if (text) {
+            const instantAnswer = getOfflineResponse(text);
+            if (!instantAnswer.includes("exploring the outer kingdoms")) {
+                setAiText(instantAnswer);
+                playOfflineTTS(instantAnswer);
+                setIsThinking(false);
+                return; // Goal reached!
+            }
+        }
+
+        try {
+            // PHASE 1: Try Google Cloud (Global Accessibility)
+            const cloudUrl = "https://us-central1-tooth-kingdom-adventure.cloudfunctions.net/processAI";
+            log("Attempting Cloud AI...");
+
+            let response = await fetch(cloudUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, audio }),
+                mode: 'cors'
+            }).catch(() => null); // Neutralize initial network failure
+
+            // PHASE 2: Try Local PC Fallback (If Cloud fails or No Internet)
+            if (!response || !response.ok) {
+                log(`Cloud AI unavailable. Checking Local PC...`);
+
+                const localUrl = "http://127.0.0.1:8010/process";
+                response = await fetch(localUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text || "Hello", audio: audio || "" })
+                }).catch(() => null);
+            }
+
+            // PHASE 3: Offline Brain (The "Invincible" Fallback)
+            if (!response || !response.ok) {
+                log(`Both Backends Down. Activating Offline Royal Brain...`);
+                fallbackOffline();
+                return; // Exit early to avoid further processing
+            }
+
+            const data = await response.json();
+            if (data.success) {
+                setAiText(data.text);
+                if (data.audio) {
+                    playAudioResponse(data.audio);
+                } else {
+                    playOfflineTTS(data.text);
+                }
+            } else {
+                fallbackOffline();
+            }
+        } catch (err) {
+            log(`System Error. Using Royal Fallback...`);
+            fallbackOffline();
+        } finally {
+            setIsThinking(false);
+        }
+    };
+
+    // NATIVE BROWSER SPEECH FALLBACK
+    const playOfflineTTS = (text: string) => {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel(); // Stop any current speech
+
+        const executeSpeech = () => {
+            const utterance = new SpeechSynthesisUtterance(text);
+            const voices = window.speechSynthesis.getVoices();
+
+            // Strict Female Voice Hunt prioritizing Microsoft/Google
+            const preferredVoice = voices.find(v =>
+                v.name.includes('Zira') ||
+                v.name.includes('Hazel') ||
+                v.name.includes('Google UK English Female') ||
+                v.name.includes('Google US English') ||
+                (v.name.includes('Female') && !v.name.includes('Male')) ||
+                v.name.toLowerCase().includes('girl') ||
+                v.name.toLowerCase().includes('woman')
+            ) || voices.find(v => v.lang.startsWith('en') && v.name.includes('Female')) || voices[0];
+
+            if (preferredVoice) utterance.voice = preferredVoice;
+            utterance.pitch = 1.4; // Higher pitch for Anime girl sound
+            utterance.rate = 1.05;
+
+            // RE-INITIALIZE VOICES IF EMPTY (Android Specific)
+            if (voices.length === 0) {
+                log("Voices missing, waiting for OS...");
+                window.speechSynthesis.onvoiceschanged = () => {
+                    executeSpeech();
+                    window.speechSynthesis.onvoiceschanged = null;
+                };
+                return;
+            }
+
+            // INSTANT Lip Sync trigger (Bypasses Chrome's delayed onstart event)
+            isSpeakingRef.current = true;
+            const startTime = Date.now();
+            const simulateSpeech = () => {
+                if (!isSpeakingRef.current || !modelRef.current?.internalModel?.coreModel) return;
+                // Generate a pseudo-random sine wave pulse to make the mouth flap
+                const mouthOpen = (Math.sin((Date.now() - startTime) / 80) + 1) / 2 * 0.8;
+                modelRef.current.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', mouthOpen);
+                requestAnimationFrame(simulateSpeech);
+            };
+            simulateSpeech();
+
+            utterance.onend = () => {
+                isSpeakingRef.current = false;
+                if (modelRef.current?.internalModel?.coreModel) {
+                    modelRef.current.internalModel.coreModel.setParameterValueById('ParamMouthOpenY', 0);
+                }
+            };
+
+            window.speechSynthesis.speak(utterance);
+        };
+
+        // Chrome/Edge Race Condition Fix: voices might not be loaded on first click
+        if (window.speechSynthesis.getVoices().length === 0) {
+            const voicesChangedHandler = () => {
+                executeSpeech();
+                window.speechSynthesis.removeEventListener('voiceschanged', voicesChangedHandler);
+            };
+            window.speechSynthesis.addEventListener('voiceschanged', voicesChangedHandler);
+        } else {
+            executeSpeech();
+        }
+    };
+
+    const playAudioResponse = (base64Audio: string) => {
+        if (audioRef.current) audioRef.current.pause();
+        // If speechSynthesis was running, stop it
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+        const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
+        audioRef.current = audio;
+        initAudioAnalyser(audio);
+        audio.play();
+    };
+
+    // Expose methods to parent via ref (Imperial Unlock)
+    useImperativeHandle(ref, () => ({
+        processAI,
+        startRecording,
+        stopRecording,
+        unlockAudio
+    }), [processAI, unlockAudio]);
+
+    const handleSend = () => {
+        if (!inputText.trim()) return;
+        processAI(inputText);
+        setInputText("");
+    };
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadScript = (url: string, globalCheck: string): Promise<void> => {
+            return new Promise((resolve, reject) => {
+                if ((window as any)[globalCheck]) return resolve();
+                const script = document.createElement('script');
+                script.src = url;
+                script.async = true;
+                script.onload = () => resolve();
+                script.onerror = () => reject(new Error(`Failed to load: ${url}`));
+                document.body.appendChild(script);
+            });
+        };
+
+        const setupCamera = async () => {
+            if (!videoRef.current) return;
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: false,
+                });
+                if (isMounted && videoRef.current) videoRef.current.srcObject = stream;
+            } catch (err: any) {
+                log(`Camera Error: ${err.message}`);
+            }
+        };
+
+        const initMediaPipe = async () => {
+            const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+            faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+                    delegate: "CPU"
+                },
+                outputFaceBlendshapes: true,
+                runningMode: "VIDEO"
+            });
+            handLandmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+                baseOptions: {
+                    modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                    delegate: "CPU"
+                },
+                runningMode: "VIDEO"
+            });
+        };
+
+        const initLive2D = async () => {
+            if (!canvasRef.current || appRef.current) return;
+            await loadScript("https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.4.2/pixi.min.js", "PIXI");
+            await loadScript("https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js", "Live2D");
+            await loadScript("https://cdn.jsdelivr.net/npm/live2dcubismcore@1.0.2/live2dcubismcore.min.js", "Live2DCubismCore");
+            await loadScript("https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js", "PIXI.live2d");
+
+            const PIXI = (window as any).PIXI;
+            const app = new PIXI.Application({
+                view: canvasRef.current,
+                backgroundAlpha: 0,
+                width: 800,
+                height: 1200,
+                antialias: true,
+                autoStart: true
+            });
+            appRef.current = app;
+
+            const Live2DModel = (PIXI as any).live2d.Live2DModel;
+            const model = await Live2DModel.from(AVATAR_PATH, { autoInteract: false });
+            if (!isMounted) { model.destroy(); app.destroy(); return; }
+
+            modelRef.current = model;
+            // @ts-ignore
+            model.anchor.set(0.5, 0.5);
+            // @ts-ignore
+            model.x = app.screen.width / 2;
+            // @ts-ignore
+            const baseScale = Math.min((app.screen.width / model.width), (app.screen.height / model.height));
+            // @ts-ignore
+            model.y = app.screen.height * 1.45;
+            // @ts-ignore
+            model.scale.set(baseScale * 2.1);
+
+            try {
+                // @ts-ignore
+                const internal = model.internalModel as any;
+
+                // DISABLE IDLE PHYSICS THAT FIGHT WEBCAM TRACKING
+                if (internal.motionManager) {
+                    internal.motionManager.stopAllMotions();
+                    internal.motionManager.update = () => false; // Nuke update loop
+                    internal.motionManager.startMotion = async () => false; // Block all motions
+                    internal.motionManager.startRandomMotion = async () => false;
+                    // Override breath/eye blink auto-generators if present
+                    if (internal.breath) internal.breath = null;
+                    if (internal.eyeBlink) internal.eyeBlink = null;
+                }
+
+                internal.coreModel._partIds.forEach((id: string, index: number) => {
+                    if (id.includes('ArmA')) internal.coreModel.setPartOpacityById(id, 0);
+                    else if (id.includes('ArmB')) internal.coreModel.setPartOpacityById(id, 1);
+                });
+            } catch (e) { }
+
+            app.stage.addChild(model);
+            if (isMounted) setModelLoaded(true);
+        };
+
+        const renderLoop = () => {
+            if (!isMounted) return;
+
+            if (!videoRef.current || !faceLandmarkerRef.current || !handLandmarkerRef.current || !modelRef.current || videoRef.current.readyState < 2) {
+                requestRef.current = requestAnimationFrame(renderLoop);
+                return;
+            }
+
+            try {
+                const video = videoRef.current;
+                const model = modelRef.current;
+                const startTimeMs = performance.now();
+                const faceResult = faceLandmarkerRef.current.detectForVideo(video, startTimeMs);
+                const handResult = handLandmarkerRef.current.detectForVideo(video, startTimeMs);
+
+                if (faceResult.faceBlendshapes?.[0] && model.internalModel) {
+                    const faceRig = Kalidokit.Face.solve(faceResult.faceLandmarks[0], {
+                        runtime: "mediapipe", video, imageSize: { width: video.videoWidth, height: video.videoHeight }
+                    });
+                    if (faceRig) {
+                        const core = model.internalModel?.coreModel;
+                        if (core) {
+                            core.setParameterValueById('ParamAngleX', faceRig.head.degrees.y);
+                            core.setParameterValueById('ParamAngleY', faceRig.head.degrees.x);
+                            core.setParameterValueById('ParamAngleZ', faceRig.head.degrees.z);
+                            core.setParameterValueById('ParamEyeLOpen', faceRig.eye.l);
+                            core.setParameterValueById('ParamEyeROpen', faceRig.eye.r);
+
+                            // Lip Sync Priority (Seamless Handoff)
+                            let lipSyncValue = null;
+                            if (audioRef.current && !audioRef.current.paused) {
+                                lipSyncValue = updateLipSync();
+                            }
+
+                            if (lipSyncValue !== null) {
+                                core.setParameterValueById('ParamMouthOpenY', lipSyncValue);
+                            } else {
+                                core.setParameterValueById('ParamMouthOpenY', faceRig.mouth.y);
+                            }
+                        }
+                    }
+                }
+
+                if (handResult.landmarks && handResult.landmarks.length > 0) {
+                    const finger = handResult.landmarks[0][8];
+                    if (onTrackingUpdate) onTrackingUpdate({ x: 1 - finger.x, y: finger.y });
+                } else if (onTrackingUpdate) {
+                    onTrackingUpdate(null);
+                }
+            } catch (e) {
+                console.warn('[VTUBER] Render Cycle skipped:', e);
+            }
+
+            if (isMounted) requestRef.current = requestAnimationFrame(renderLoop);
+        };
+
+        const init = async () => {
+            try {
+                await setupCamera();
+                await initMediaPipe();
+                await initLive2D();
+                if (isMounted) requestRef.current = requestAnimationFrame(renderLoop);
+            } catch (err: any) {
+                log(`Initialization Fault: ${err.message}`);
+            }
+        };
+
+        init();
+
+        return () => {
+            log('Engine: Cleanup...');
+            isMounted = false;
+            if (requestRef.current) cancelAnimationFrame(requestRef.current);
+
+            // 1. Destroy WebGL/WebWorker memory contexts for MediaPipe to prevent background tab crashes
+            try {
+                if (faceLandmarkerRef.current) {
+                    faceLandmarkerRef.current.close();
+                    faceLandmarkerRef.current = null;
+                }
+                if (handLandmarkerRef.current) {
+                    handLandmarkerRef.current.close();
+                    handLandmarkerRef.current = null;
+                }
+            } catch (err) {
+                console.warn("MediaPipe GC Error:", err);
+            }
+
+            // 2. Destroy PixiJS Canvas and Purge GPU Textures safely (Leave DOM to React)
+            if (appRef.current) {
+                try {
+                    appRef.current.ticker.stop();
+                    if (modelRef.current) modelRef.current.destroy({ children: true, texture: true, baseTexture: true });
+                    // Explicitly pass 'false' to prevent PixiJS from deleting the React-owned <canvas> tag
+                    appRef.current.destroy(false, { children: true, texture: true, baseTexture: true });
+                } catch (e) {
+                    console.warn("PixiJS GC Error:", e);
+                }
+            }
+
+            // 3. Kill Webcam Feed Stream
+            if (videoRef.current?.srcObject) {
+                (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => {
+                    t.stop();
+                    videoRef.current!.srcObject = null;
+                });
+            }
+
+            // 4. Close Audio Context explicit garbage collection to prevent the 6-instance hard browser crash
+            if (audioContextRef.current) {
+                audioContextRef.current.close().catch(console.warn);
+                audioContextRef.current = null;
+            }
+        };
+    }, []);
+
+    return (
+        <div className="absolute inset-0 w-full h-full rounded-3xl overflow-hidden bg-transparent z-10">
+            {/* Original Kingdom Background restored */}
+            <div
+                className="absolute inset-0 z-0 bg-cover bg-center shadow-[inset_0_0_100px_rgba(0,0,0,0.8)]"
+                style={{ backgroundImage: `url('/thumbnails/tooth_kingdom_bg.png')` }}
+            />
+
+            <video ref={videoRef} className="hidden" playsInline autoPlay />
+            <canvas
+                ref={canvasRef}
+                onClick={unlockAudio}
+                className="absolute inset-0 w-full h-full object-contain z-10 cursor-pointer"
+                style={{ opacity: modelLoaded ? 1 : 0 }}
+            />
+
+            {/* Voice Status is now handled by Parent for "Outside" positioning */}
+
+            <div className="absolute bottom-2 left-4 z-50 opacity-10 pointer-events-none text-[8px] font-mono text-white">
+                {telemetry.join(' | ')}
+            </div>
+        </div>
+    );
+}));
