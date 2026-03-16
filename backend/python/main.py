@@ -155,7 +155,7 @@ class AIProcessRequest(BaseModel):
     audio: Optional[str] = None
 
 # --- CONSTANTS ---
-SECRET_KEY = "tooth-kingdom-secret-key"
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-key-change-me")
 ALGORITHM = "HS256"
 INITIAL_USER_DATA = {
     "brushingLogs": {}, "completedChapters": 0, "currentStreak": 0, "bestStreak": 0,

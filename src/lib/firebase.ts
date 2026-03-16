@@ -7,13 +7,13 @@ import { getAnalytics } from "firebase/analytics";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyCX16H6LtmsOE6qs0-i9eLZmV5G2_KwRFU",
-    authDomain: "tooth-kingdom-adventure.firebaseapp.com",
-    projectId: "tooth-kingdom-adventure",
-    storageBucket: "tooth-kingdom-adventure.firebasestorage.app",
-    messagingSenderId: "678156466470",
-    appId: "1:678156466470:web:5edb67b5389fc975c1e9e7",
-    measurementId: "G-HKPL0R9TN1"
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
