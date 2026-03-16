@@ -5,9 +5,11 @@ import { chapters } from '../../data/chapters';
 import { GameEngine } from '../games/GameEngine';
 import { useGame } from '../../context/GameContext';
 import { rpgService } from '../../services/rpgService';
+import { useAuth, API_URL } from '../../context/AuthContext';
 
 export function ChaptersScreen({ navigateTo, userData }: ScreenProps) {
   const { updateUserData } = useGame();
+  const { currentUser } = useAuth();
   const [activeChapterId, setActiveChapterId] = useState<number | null>(null);
 
   const handleStartChapter = (chapterId: number) => {
@@ -18,10 +20,9 @@ export function ChaptersScreen({ navigateTo, userData }: ScreenProps) {
     setActiveChapterId(null);
   };
 
-  const handleGameComplete = (score: number, stars: number) => {
-    // Hidden RPG: Track Quest Progress for "Hero's Journey" (Quest ID 1)
+  const handleGameComplete = async (score: number, stars: number) => {
+    // 1. Update local state (offline-first)
     const rpgQuestUpdates = rpgService.trackQuestProgress(userData, 1, 20);
-    // Also reward skill/XP
     const rpgRewards = rpgService.rewardTaskCompletion(userData, 'lesson');
 
     updateUserData({
@@ -36,7 +37,32 @@ export function ChaptersScreen({ navigateTo, userData }: ScreenProps) {
       ...rpgRewards
     });
 
-    // Also close the game
+    // 2. Sync to backend so terminal logs show real chapter completions
+    if (currentUser?.uid && activeChapterId) {
+      const uid = currentUser.uid;
+      try {
+        await fetch(`${API_URL}/game/${uid}/chapter-complete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chapter_id: activeChapterId, stars, score })
+        }).catch(() => {});
+
+        await fetch(`${API_URL}/game/${uid}/xp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: 75, reason: `completed_chapter_${activeChapterId}` })
+        }).catch(() => {});
+
+        await fetch(`${API_URL}/quests/${uid}/progress`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quest_id: 'complete_chapter', increment: 1 })
+        }).catch(() => {});
+      } catch (e) {
+        // Backend offline — local save already done above
+      }
+    }
+
     setActiveChapterId(null);
     navigateTo('reward-unlocked');
   };

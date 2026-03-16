@@ -134,7 +134,7 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
 
     // Log to backend if connected
     try {
-      fetch(`${USE_LOCAL_BACKEND ? 'http://127.0.0.1:8000' : ''}/debug/log`, {
+      fetch(`${USE_LOCAL_BACKEND ? 'http://127.0.0.1:8010' : ''}/debug/log`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: `RESEND OTP for ${phone}: ${newOtp}` })
