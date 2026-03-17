@@ -264,7 +264,7 @@ export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTub
             // PHASE 2: Try Local PC Fallback (Skip on Mobile)
             if (!isMobile && (!response || !response.ok)) {
                 log(`Cloud AI unavailable. Checking Local PC...`);
-                const localUrl = "http://127.0.0.1:8010/process";
+                const localUrl = "http://127.0.0.1:8010/ai/process";
                 response = await fetch(localUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
