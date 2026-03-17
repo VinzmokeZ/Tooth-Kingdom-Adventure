@@ -1,42 +1,34 @@
 @echo off
-TITLE Tooth Kingdom Adventure - LIVE DEVELOPER MODE
+TITLE Tooth Kingdom - Unified Live Dev
 COLOR 0B
 
 echo ======================================================
-echo   TOOTH KINGDOM ADVENTURE - LIVE DEV MODE
+echo   🛡️ TOOTH KINGDOM ADVENTURE - UNIFIED LIVE DEV
 echo ======================================================
+echo [INFO] Cleaning up previous sessions...
+:: Kill any hanging process on port 8010 (Backend) and 3000 (Frontend)
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8010 ^| findstr LISTENING') do taskkill /f /pid %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING') do taskkill /f /pid %%a >nul 2>&1
+
+echo [INFO] Starting Backend Engine... (Port 8010)
+:: Open in a new window and KEEP it open if it crashes (/k)
+start "TK-Backend (Logs)" cmd /k "cd backend/python && python main.py"
+
+echo [INFO] Starting Frontend Interface... (Port 3000)
+:: Open in a new window and KEEP it open if it crashes (/k)
+start "TK-Frontend (Logs)" cmd /k "npm run dev"
+
 echo.
-echo [INFO] This mode allows for INSTANT live changes.
-echo [INFO] Keep this window open while you work.
+echo [INFO] Waiting 5 seconds for kingdoms to align...
+timeout /t 5 /nobreak > nul
+
+echo [SUCCESS] Browser Launching...
+start http://localhost:3000
+
 echo.
-echo [INFO] Step 1: Checking Node Dependencies...
-if not exist "node_modules\" (
-    echo [ERROR] node_modules folder is missing!
-    echo [INFO] please run 'npm install' in this folder to install dependencies.
-    pause
-    exit /b
-)
-
-echo [INFO] Step 2: Checking Python Dependencies...
-python -m pip install -r backend/python/requirements.txt --quiet
-if %ERRORLEVEL% NEQ 0 (
-    echo [WARNING] Dependency check failed. Attempting to fix...
-    python -m pip install fastapi uvicorn pydantic mysql-connector-python passlib bcrypt PyJWT google-generativeai elevenlabs python-dotenv requests --user
-)
-
-echo [INFO] Step 3: Database Ready (Using SQLite)
-echo Skip MySQL check as we have moved to standalone SQLite.
-
-echo [INFO] Step 4: Launching Unified Dev Environment...
-echo (Vite + Python Backend Logs will appear below)
-echo.
-
-npx concurrently -n "VITE,PY_BACKEND" -c "cyan,green" "npm run dev" "cd backend/python && python main.py"
-
-if %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [ERROR] The development server crashed or failed to start.
-    pause
-)
-
+echo ======================================================
+echo   [OK] Two separate log windows are now open.
+echo   [OK] If one window closes, look for the ERROR in that window.
+echo   [OK] You can close THIS window now.
+echo ======================================================
 pause

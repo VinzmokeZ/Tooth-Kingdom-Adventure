@@ -18,13 +18,13 @@ import {
 } from 'firebase/auth';
 
 import { doc, setDoc } from 'firebase/firestore';
-import { auth, db, USE_LOCAL_BACKEND } from '../../lib/firebase';
+import { auth, db, USE_LOCAL_BACKEND, LOCAL_BACKEND_URL } from '../../lib/firebase';
 import { NativeBiometric } from 'capacitor-native-biometric';
 import { useAuth } from '../../context/AuthContext';
 
 
 export function SignInScreen({ navigateTo }: ScreenProps) {
-  const { loading: authLoading, setConfirmationResult, signInWithGoogleLocal, signInWithPhoneLocal, loginWithEmailPasswordLocal, registerLocal } = useAuth();
+  const { loading: authLoading, setConfirmationResult, signInWithGoogleLocal, signInWithPhoneLocal, loginWithEmailPasswordLocal, registerLocal, sendOTPLocal } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
 
   const [showPassword, setShowPassword] = useState(false);
@@ -161,6 +161,10 @@ export function SignInScreen({ navigateTo }: ScreenProps) {
         const mockOtp = Math.floor(100000 + Math.random() * 900000).toString();
         // Save for verification screen
         localStorage.setItem('mockOTP', mockOtp);
+
+        // Notify backend service for REAL email delivery
+        await sendOTPLocal(email, mockOtp, 'email');
+
         // Show validation notification
         setMockSMS({
           phone: "Local User",

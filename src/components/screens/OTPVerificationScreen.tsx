@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { USE_LOCAL_BACKEND } from '../../lib/firebase';
 
 export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
-  const { confirmationResult, verifyOTPLocal } = useAuth();
+  const { confirmationResult, verifyOTPLocal, sendOTPLocal } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -127,19 +127,20 @@ export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
     }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     // Generate new mock OTP
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const phone = localStorage.getItem('mockOTPPhone') || 'Hero';
+    const email = localStorage.getItem('currentUser') 
+      ? JSON.parse(localStorage.getItem('currentUser')!).email 
+      : null;
 
-    // Log to backend if connected
-    try {
-      fetch(`${USE_LOCAL_BACKEND ? 'http://127.0.0.1:8010' : ''}/debug/log`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: `RESEND OTP for ${phone}: ${newOtp}` })
-      }).catch(() => { });
-    } catch (e) { }
+    // Trigger real delivery via backend
+    if (USE_LOCAL_BACKEND) {
+        const target = email || phone;
+        const method = email ? 'email' : 'phone';
+        await sendOTPLocal(target, newOtp, method as any);
+    }
 
     // Update local storage
     localStorage.setItem('mockOTP', newOtp);

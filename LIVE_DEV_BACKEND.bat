@@ -18,6 +18,14 @@ echo   TOOTH KINGDOM ADVENTURE - ONLINE BACKEND MODE
 echo ================================================================
 echo.
 
+REM ── Step 0: Nuclear Port Scrub (Fixes Errno 10048) ───────────────
+echo [0/6] Clearing port conflicts (8010, 3000, 5173)...
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :8010 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :5173 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon ^| findstr :3000 ^| findstr LISTENING') do taskkill /F /PID %%a >nul 2>&1
+echo   Ports cleared.
+echo.
+
 REM ── Step 1: Check Python ─────────────────────────────────────────
 echo [1/6] Checking Python...
 python --version >nul 2>&1
@@ -141,6 +149,9 @@ if "%PHONE_CONNECTED%"=="2" (
 
 REM ── DB Viewer: launches in its own window (waits 8s inside DB_VIEWER.bat) ───
 start "Tooth Kingdom - Live DB Viewer" "%ROOT%\DB_VIEWER.bat"
+
+REM ── Test Runner: launches in its own window (waits 15s for server to boot) ──
+start "Tooth Kingdom - Backend Verification" cmd /c "timeout /t 15 /nobreak >nul && cd /d \"%BACKEND%\" && python test_backend.py && pause"
 
 REM Launch Vite + Python together (single terminal, single browser tab)
 cd /d "%ROOT%"

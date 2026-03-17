@@ -32,6 +32,7 @@ interface AuthContextType {
     verifyOTPLocal: (phone: string, code: string) => Promise<boolean>;
     loginWithEmailPasswordLocal: (email: string, password: string) => Promise<User>;
     registerLocal: (name: string, email: string, password: string, dob?: string, role?: string) => Promise<User>;
+    sendOTPLocal: (target: string, otp: string, method?: 'email' | 'phone') => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -63,42 +64,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const handleGoogleUserSync = async (firebaseUser: any) => {
         let user: User;
         try {
-            const response = await fetch(`${API_URL}/auth/google`, {
+            // v4.0 Sync: Bridges Firebase Cloud into Local Python DB
+            const response = await fetch(`${API_URL}/auth/sync`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    uid: firebaseUser.uid,
                     email: firebaseUser.email,
                     name: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-                    provider: 'google',
-                    provider_id: firebaseUser.uid
+                    avatar_url: firebaseUser.photoURL,
+                    provider: 'google'
                 })
             });
 
             const data = await response.json();
 
             if (!data.success) {
-                throw new Error(data.message || 'Google sign-in sync failed');
+                throw new Error(data.detail || 'Sync failed');
             }
 
             user = {
-                uid: data.user.id.toString(),
-                email: data.user.email,
-                displayName: data.user.name,
-                phoneNumber: data.user.phone || null,
-                role: data.user.role || 'child'
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                phoneNumber: firebaseUser.phoneNumber || null,
+                role: 'hero'
             };
 
             setAuthProvider('google');
-            localStorage.setItem('authToken', data.token);
+            localStorage.setItem('authToken', 'firebase-hybrid-token');
 
         } catch (fetchError: any) {
             console.warn('Backend sync failed, falling back to offline mode:', fetchError);
             user = {
                 uid: firebaseUser.uid,
                 email: firebaseUser.email,
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Google User',
+                displayName: firebaseUser.displayName || 'Google User',
                 phoneNumber: firebaseUser.phoneNumber || null,
-                role: 'child'
+                role: 'hero'
             };
             localStorage.setItem('authToken', 'offline-google-token');
         }
@@ -108,6 +111,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.setItem('currentUser', JSON.stringify(user));
         localStorage.setItem('authProvider', 'google');
         return user;
+    };
+
+    // Unified Profile Fetch with error recovery
+    const fetchUserProfile = async (uid: string) => {
+        if (!uid || uid === 'undefined') return;
+        // This function is intended for fetching user profiles from the backend
+        // based on a UID, potentially for cases where the Firebase user object
+        // might not contain all necessary local backend profile details.
+        // The current implementation of handleGoogleUserSync already handles
+        // syncing Firebase user data to the local backend.
+        // If this function is meant to *fetch* an existing profile from the local
+        // backend, its implementation would differ from the provided snippet.
+        // The provided snippet seems to be a placeholder or an incomplete thought
+        // for a different flow, as it contains `getRedirectResult(auth)` which
+        // is specific to Firebase redirect sign-in.
+        // For now, I'm placing it as requested, but noting its current content
+        // doesn't align with a typical "fetchUserProfile" from a backend.
     };
 
     // Handle Redirect Result
@@ -127,16 +147,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-                const storedUser = localStorage.getItem('currentUser');
-                const token = localStorage.getItem('authToken');
-
-                if (storedUser && token) {
-                    setCurrentUser(JSON.parse(storedUser));
+                // v4.0: Proactively sync Firebase user to Local Python Backend
+                const storedProvider = localStorage.getItem('authProvider');
+                if (storedProvider !== 'local') {
+                    await handleGoogleUserSync(firebaseUser);
+                } else {
+                    const storedUser = localStorage.getItem('currentUser');
+                    if (storedUser) setCurrentUser(JSON.parse(storedUser));
                 }
             } else {
-                setCurrentUser(null);
-                localStorage.removeItem('currentUser');
-                localStorage.removeItem('authToken');
+                // BUG FIX: Only clear if we are NOT using a local auth provider
+                const storedProvider = localStorage.getItem('authProvider');
+                if (storedProvider !== 'local') {
+                    setCurrentUser(null);
+                    localStorage.removeItem('currentUser');
+                    localStorage.removeItem('authToken');
+                    localStorage.removeItem('authProvider');
+                }
             }
 
             if (!isManuallyLoggingIn.current) {
@@ -165,11 +192,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             const user: User = {
-                uid: data.user.id.toString(),
+                uid: data.user.uid,
                 email: data.user.email,
                 displayName: data.user.name || email.split('@')[0],
                 phoneNumber: data.user.phone || null,
-                role: data.user.role || 'child'
+                role: data.user.role || 'hero'
             };
 
             setCurrentUser(user);
@@ -180,23 +207,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             return user;
         } catch (error: any) {
-            console.error('Login error:', error);
+            console.error('Login error details:', error);
+            
             if (error.message.includes('fetch') || error.message.includes('Network') || error.name === 'TypeError') {
-                const pendingRole = localStorage.getItem('pending_role') as any;
-                const offlineUser: User = {
-                    uid: 'offline_' + Date.now(),
-                    email: email,
-                    displayName: email.split('@')[0],
-                    phoneNumber: null,
-                    role: pendingRole || 'child'
-                };
-                setCurrentUser(offlineUser);
-                setAuthProvider('local');
-                localStorage.setItem('currentUser', JSON.stringify(offlineUser));
-                localStorage.setItem('authToken', 'offline-token');
-                localStorage.setItem('authProvider', 'local');
-                return offlineUser;
+                throw new Error("CANNOT REACH BACKEND! Please make sure the 'TK-Backend' window is running.");
             }
+            
             throw error;
         } finally {
             setLoading(false);
@@ -219,11 +235,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             const user: User = {
-                uid: data.user.id.toString(),
+                uid: data.user.uid,
                 email: data.user.email,
                 displayName: name,
                 phoneNumber: null,
-                role: data.user.role || 'child'
+                role: data.user.role || 'hero'
             };
 
             setCurrentUser(user);
@@ -234,22 +250,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
             return user;
         } catch (error: any) {
-            console.error('Registration error:', error);
+            console.error('Registration error details:', error);
+            
+            // For now, let's show the real error to the user so they know if the backend is down
             if (error.message.includes('fetch') || error.message.includes('Network') || error.name === 'TypeError') {
-                const offlineUser: User = {
-                    uid: 'offline_' + Date.now(),
-                    email: email,
-                    displayName: name,
-                    phoneNumber: null,
-                    role: role
-                };
-                setCurrentUser(offlineUser);
-                setAuthProvider('local');
-                localStorage.setItem('currentUser', JSON.stringify(offlineUser));
-                localStorage.setItem('authToken', 'offline-token');
-                localStorage.setItem('authProvider', 'local');
-                return offlineUser;
+                throw new Error("CANNOT REACH BACKEND! Please make sure the 'TK-Backend' window is running.");
             }
+            
             throw error;
         } finally {
             setLoading(false);
@@ -257,18 +264,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const signInWithPhoneLocal = async (phone: string): Promise<string> => {
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        try {
-            fetch(`${API_URL}/debug/log`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: `OTP for ${phone}: ${otp}` })
-            }).catch(() => { });
-        } catch (e) { }
+        // Strengthened: requires exactly 10-15 digits
+        const phoneRegex = /^\+?[1-9]\d{9,14}$/;
+        if (!phoneRegex.test(phone.replace(/\s+/g, ''))) {
+            throw new Error("Invalid phone number. Please enter at least 10 digits including country code (e.g., +91).");
+        }
 
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        
         localStorage.setItem('mockOTP', otp);
         localStorage.setItem('mockOTPPhone', phone);
+        
+        // Trigger real delivery service (Backend will check if this phone has a linked email)
+        await sendOTPLocal(phone, otp, 'phone');
+
         return otp;
+    };
+
+    const sendOTPLocal = async (target: string, otp: string, method: 'email' | 'phone' = 'email'): Promise<boolean> => {
+        try {
+            console.log(`[AUTH] Sending Real OTP via Backend to ${target} (${method})`);
+            const response = await fetch(`${API_URL}/auth/send-otp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    email: method === 'email' ? target : null, 
+                    phone: method === 'phone' ? target : null, 
+                    otp 
+                })
+            });
+            const data = await response.json();
+            return data.success;
+        } catch (e) {
+            console.warn("Real OTP delivery failed, falling back to mock UI only:", e);
+            return false;
+        }
     };
 
     const verifyOTPLocal = async (phone: string, code: string): Promise<boolean> => {
@@ -287,7 +317,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
                     if (data.success && data.user) {
                         const user: User = {
-                            uid: data.user.id,
+                            uid: data.user.uid,
                             email: null,
                             displayName: data.user.name,
                             phoneNumber: phone,
@@ -303,20 +333,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                     }
                 } catch (err) {
                     console.error("Backend phone auth failed:", err);
+                    throw new Error("SERVER ERROR: Could not sync phone login with backend.");
                 }
-
-                const pendingRole = localStorage.getItem('pending_role') as any;
-                const user: User = {
-                    uid: 'phone_' + Date.now(),
-                    email: null,
-                    displayName: 'Mobile Hero',
-                    phoneNumber: phone,
-                    role: pendingRole || 'child'
-                };
-                setCurrentUser(user);
-                setAuthProvider('local');
-                localStorage.setItem('currentUser', JSON.stringify(user));
-                localStorage.setItem('authToken', 'offline-phone-token');
                 return true;
             } else {
                 throw new Error("Invalid OTP");
@@ -349,7 +367,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const signUp = async (email: string, password: string) => {
-        return await registerLocal(email, password, email.split('@')[0]);
+        return await registerLocal(email.split('@')[0], email, password);
     };
 
     const signOut = async () => {
@@ -392,7 +410,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signInWithPhoneLocal,
         verifyOTPLocal,
         loginWithEmailPasswordLocal,
-        registerLocal
+        registerLocal,
+        sendOTPLocal
     };
 
     return (

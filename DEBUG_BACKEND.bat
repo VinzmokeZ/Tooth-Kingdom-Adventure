@@ -8,8 +8,8 @@ echo ======================================================
 echo.
 
 :: Force kill anything on port 8000 (standard Windows command)
-echo [PRE-CHECK] Clearing port 8000 to prevent crash...
-for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000') do (
+echo [PRE-CHECK] Clearing port 8010 to prevent crash...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8010') do (
     if NOT "%%a"=="" (
         echo [INFO] Killing ghost process %%a on port 8000...
         taskkill /F /PID %%a >nul 2>&1

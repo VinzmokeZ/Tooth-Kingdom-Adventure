@@ -66,7 +66,7 @@ const AppContent = () => {
   // Sync with Backend on login
   useEffect(() => {
     const syncWithBackend = async () => {
-      if (currentUser && lastSyncId !== currentUser.uid && !authLoading) {
+      if (currentUser && currentUser.uid !== 'undefined' && lastSyncId !== currentUser.uid && !authLoading) {
         try {
           console.log('[SYNC] Fetching user data from backend for:', currentUser.uid);
           const response = await fetch(`${LOCAL_BACKEND_URL}/users/${currentUser.uid}`);
@@ -90,7 +90,7 @@ const AppContent = () => {
   useEffect(() => {
     const pushToBackend = async () => {
       // Only sync if we have a valid lastSyncId matching current user
-      if (currentUser && lastSyncId === currentUser.uid) {
+      if (currentUser && currentUser.uid !== 'undefined' && lastSyncId === currentUser.uid) {
         if (userData.selectedCharacter !== null) {
           try {
             await fetch(`${LOCAL_BACKEND_URL}/users/${currentUser.uid}`, {

@@ -103,7 +103,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
   // Sync with Backend when User Changes (Login/Register)
   useEffect(() => {
     const fetchUserData = async () => {
-      if (!currentUser?.uid) return;
+      if (!currentUser?.uid || currentUser.uid === 'undefined') return;
 
       try {
         // 1. Try to fetch from Backend
@@ -142,7 +142,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
     // Backend Sync (Debounced ideally, but direct for now)
     const saveToBackend = async () => {
-      if (!currentUser?.uid) return;
+      if (!currentUser?.uid || currentUser.uid === 'undefined') return;
 
       try {
         await fetch(`${API_URL}/users/${currentUser.uid}`, {

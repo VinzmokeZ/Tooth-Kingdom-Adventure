@@ -1,121 +1,238 @@
 import os
 import sys
+import time
 import json
-import random
-import jwt
 import sqlite3
-import traceback
-import requests
-import base64
-import faulthandler
+import bcrypt
+import jwt
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+import uvicorn
+import smtplib
+from email.message import EmailMessage
+import logger as log
 
-# Enable hard-crash logging for terminal disappearances
-faulthandler.enable(file=open('hard_crash.log', 'w'))
-
-# Standard FastAPI imports
-try:
-    from fastapi import FastAPI, HTTPException, Depends, Header
-    from fastapi.middleware.cors import CORSMiddleware
-    from pydantic import BaseModel
-    import uvicorn
-    from dotenv import load_dotenv
-except ImportError as e:
-    print(f"[FATAL] Missing basic libraries: {e}")
-    sys.exit(1)
-
-# --- UTILS ---
-def safe_print(msg):
-    """Prints safely even if there are emojis or unicode issues."""
-    try:
-        print(msg, flush=True)
-    except:
-        try:
-            print(str(msg).encode('ascii', 'replace').decode('ascii'), flush=True)
-        except:
-            pass
-
-def log_error(context, error):
-    """Logs errors to a persistent file to survive console crashes."""
-    try:
-        with open("backend_crash.log", "a", encoding='utf-8') as f:
-            f.write(f"\n[{datetime.now()}] {context}: {error}\n")
-            f.write(traceback.format_exc())
-            f.write("-" * 40 + "\n")
-    except:
-        pass
-
-# --- BYPASS BCRYPT HACK (Cleaner) ---
-try:
-    import bcrypt
-    from passlib.context import CryptContext
-    # Passlib 1.7.4 compatibility for bcrypt 4.0+
-    if not hasattr(bcrypt, '__about__'):
-        class About: pass
-        About.__version__ = getattr(bcrypt, '__version__', '4.0.0')
-        bcrypt.__about__ = About()
-    PWD_CONTEXT = CryptContext(schemes=["bcrypt"], deprecated="auto")
-except Exception as e:
-    safe_print(f"[AUTH WARNING] Auth limited: {e}")
-    PWD_CONTEXT = None
-
-# --- LOAD CONFIG ---
+# --- CONFIG & PATHS ---
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-GOOGLE_GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+DB_PATH = os.path.join(os.path.dirname(__file__), "database.db")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY", "tooth_kingdom_secret_v3_2026")
+ALGORITHM = "HS256"
 
-# --- DATABASE ---
-SQLITE_PATH = os.path.join(os.path.dirname(__file__), 'database.db')
-
+# --- DB ENGINE (Unified) ---
 def get_db():
-    conn = sqlite3.connect(SQLITE_PATH)
+    conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     try:
-        cursor = conn.cursor()
-        yield cursor, conn
+        yield conn
     finally:
         conn.close()
 
 def init_db():
-    try:
-        conn = sqlite3.connect(SQLITE_PATH)
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                uid TEXT UNIQUE,
-                name TEXT,
-                email TEXT UNIQUE,
-                password_hash TEXT,
-                role TEXT DEFAULT 'child',
-                level INTEGER DEFAULT 1,
-                xp INTEGER DEFAULT 0,
-                gold INTEGER DEFAULT 0,
-                enamel_health INTEGER DEFAULT 100,
-                total_stars INTEGER DEFAULT 0,
-                selected_character INTEGER DEFAULT 1,
-                completed_chapters INTEGER DEFAULT 0,
-                current_streak INTEGER DEFAULT 0,
-                total_days INTEGER DEFAULT 0,
-                phone_number TEXT,
-                date_of_birth TEXT,
-                birth_place TEXT,
-                parent_uid TEXT,
-                userData TEXT
-            )
-        ''')
-        conn.commit()
-        conn.close()
-        safe_print(f"[DB] Ready at {SQLITE_PATH}")
-    except Exception as e:
-        log_error("DB_INIT", e)
-        safe_print(f"[DB ERROR] {e}")
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    # Users & Auth
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            uid TEXT PRIMARY KEY,
+            name TEXT,
+            email TEXT UNIQUE,
+            password TEXT,
+            role TEXT DEFAULT 'hero',
+            dob TEXT,
+            phone TEXT,
+            provider TEXT DEFAULT 'local',
+            provider_id TEXT,
+            avatar_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    # Game Stats
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS game_stats (
+            uid TEXT PRIMARY KEY,
+            level INTEGER DEFAULT 1,
+            xp INTEGER DEFAULT 0,
+            gold INTEGER DEFAULT 0,
+            enamel_health INTEGER DEFAULT 100,
+            current_streak INTEGER DEFAULT 0,
+            last_brush_date TEXT,
+            selected_character INTEGER DEFAULT 1,
+            completed_chapters TEXT DEFAULT '[]',
+            FOREIGN KEY(uid) REFERENCES users(uid)
+        )
+    """)
+    # Brushing Logs
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS brushing_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uid TEXT,
+            session_date TEXT,
+            duration_seconds INTEGER,
+            quality_score INTEGER,
+            xp_earned INTEGER,
+            gold_earned INTEGER,
+            FOREIGN KEY(uid) REFERENCES users(uid)
+        )
+    """)
+    # Quests & Progress
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS daily_quests (
+            quest_id TEXT PRIMARY KEY,
+            title TEXT,
+            description TEXT,
+            requirement INTEGER,
+            reward_xp INTEGER,
+            reward_gold INTEGER
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_quests (
+            uid TEXT,
+            quest_id TEXT,
+            progress INTEGER DEFAULT 0,
+            completed BOOLEAN DEFAULT 0,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(uid, quest_id),
+            FOREIGN KEY(uid) REFERENCES users(uid),
+            FOREIGN KEY(quest_id) REFERENCES daily_quests(quest_id)
+        )
+    """)
+    # Rewards & Inventory
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inventory (
+            uid TEXT,
+            item_id TEXT,
+            quantity INTEGER DEFAULT 1,
+            purchased_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(uid, item_id),
+            FOREIGN KEY(uid) REFERENCES users(uid)
+        )
+    """)
+    # AI History
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS ai_chat (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            uid TEXT,
+            role TEXT,
+            content TEXT,
+            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(uid) REFERENCES users(uid)
+        )
+    """)
+    # Relations (Parent-Child, Teacher-Student)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_relations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            parent_uid TEXT,
+            child_uid TEXT,
+            relation_type TEXT, -- 'parent_child' or 'teacher_student'
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(parent_uid, child_uid, relation_type)
+        )
+    """)
+    # Rewards Tracking
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS unlocked_rewards (
+            uid TEXT,
+            reward_id TEXT,
+            unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (uid, reward_id)
+        )
+    """)
 
-init_db()
+    # 11. Notifications / Reminders
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender_uid TEXT,
+            receiver_uid TEXT,
+            message TEXT,
+            type TEXT,
+            status TEXT DEFAULT 'unread',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
+    log.db_log("SYSTEM", "Unified Database Schema v3.0 initialized.", "INFO")
 
-# --- APP ---
-app = FastAPI(title="Tanu AI Backend")
+# --- MODELS ---
+class RegisterRequest(BaseModel):
+    name: str
+    email: str
+    password: str
+    dob: Optional[str] = None
+    role: Optional[str] = "hero"
+    phone: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+class GameSyncRequest(BaseModel):
+    level: int
+    xp: int
+    gold: int
+    enamel_health: int
+    current_streak: int
+
+class SyncRequest(BaseModel):
+    uid: str
+    email: str
+    name: Optional[str] = "G-Hero"
+    avatar_url: Optional[str] = None
+    provider: Optional[str] = "google"
+
+class PhoneAuthRequest(BaseModel):
+    phone: str
+
+class ReminderRequest(BaseModel):
+    sender_uid: str
+    receiver_uid: str
+    message: Optional[str] = "Time to brush! 🦷✨"
+    type: Optional[str] = "reminder"
+
+class DebugLogRequest(BaseModel):
+    message: str
+
+class AIRequest(BaseModel):
+    text: str
+
+class OTPRequest(BaseModel):
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    otp: str
+
+class LinkRequest(BaseModel):
+    parent_uid: str
+    child_identifier: str
+    relation_type: str
+
+class UserProfileUpdate(BaseModel):
+    userData: Optional[Dict[str, Any]] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+# --- SECURITY ---
+def hash_pw(pw: str) -> str:
+    # Truncate to 72 bytes for bcrypt safety
+    return bcrypt.hashpw(pw.encode('utf-8')[:72], bcrypt.gensalt()).decode('utf-8')
+
+def check_pw(pw: str, hashed: str) -> bool:
+    return bcrypt.checkpw(pw.encode('utf-8')[:72], hashed.encode('utf-8'))
+
+def create_token(data: dict):
+    expire = datetime.utcnow() + timedelta(days=7)
+    to_encode = data.copy()
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+# --- APP SETUP ---
+app = FastAPI(title="Tooth Kingdom Adventure - Solid Backend v4.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -124,213 +241,460 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- MODELS ---
-class UserRegister(BaseModel):
-    name: str
-    email: str
-    password: str
-    dob: Optional[str] = None
-    role: Optional[str] = "child"
+@app.middleware("http")
+async def log_middleware(request: Request, call_next):
+    start = time.time()
+    response = await call_next(request)
+    duration = int((time.time() - start) * 1000)
+    log.api_log(request.method, request.url.path, response.status_code, duration)
+    return response
 
-class UserLogin(BaseModel):
-    email: str
-    password: str
+def send_email_otp(target_email: str, otp: str):
+    smtp_user = os.getenv("SMTP_EMAIL")
+    smtp_pass = os.getenv("SMTP_PASSWORD")
+    
+    if not smtp_user or not smtp_pass:
+        log.db_log("OTP_SERVICE", f"SKIP REAL EMAIL: SMTP credentials missing in .env", "WARNING")
+        return False
 
-class UserDataUpdate(BaseModel):
-    name: Optional[str] = None
-    email: Optional[str] = None
-    userData: Dict[str, Any]
+    try:
+        msg = EmailMessage()
+        msg.set_content(f"Your Tooth Kingdom Adventure verification code is: {otp}\n\nDo not share this code with anyone.")
+        msg["Subject"] = "Tooth Kingdom Verification Code"
+        msg["From"] = smtp_user
+        msg["To"] = target_email
 
-class GoogleAuthRequest(BaseModel):
-    email: str
-    name: str
-    provider: Optional[str] = "google"
-    provider_id: Optional[str] = None
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(smtp_user, smtp_pass)
+            smtp.send_message(msg)
+        
+        log.db_log("OTP_SERVICE", f"REAL EMAIL SENT to {target_email}", "INFO")
+        return True
+    except Exception as e:
+        log.db_log("OTP_SERVICE", f"FAILED to send real email to {target_email}: {e}", "ERROR")
+        return False
 
-class PhoneAuthRequest(BaseModel):
-    phone: str
+@app.post("/auth/send-otp")
+def send_otp(req: OTPRequest):
+    phone = req.phone
+    otp = req.otp
+    email = req.email
+    
+    # Try to find user email if only phone provided
+    if phone and not email and phone != "LOCAL":
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        user = conn.execute("SELECT email FROM users WHERE phone = ?", (phone,)).fetchone()
+        conn.close()
+        if user: 
+            email = user['email']
+            log.db_log("OTP_SERVICE", f"Found linked email {email} for phone {phone}", "INFO")
 
-class AIProcessRequest(BaseModel):
-    text: Optional[str] = None
-    audio: Optional[str] = None
+    print("\n" + "="*60)
+    print(f"   [OTP REQUEST]  ID: {phone or email}")
+    print(f"   [OTP REQUEST]  CODE: {otp}")
+    print(f"   [OTP REQUEST]  EMAIL TARGET: {email or 'NONE'}")
+    print("="*60 + "\n")
 
-# --- CONSTANTS ---
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-key-change-me")
-ALGORITHM = "HS256"
-INITIAL_USER_DATA = {
-    "brushingLogs": {}, "completedChapters": 0, "currentStreak": 0, "bestStreak": 0,
-    "totalStars": 0, "email": "", "lastBrushedTimestamp": None, "level": 1, "xp": 0,
-    "gold": 0, "enamelHealth": 100, "questProgress": {"completedQuests": [], "activeQuests": []},
-    "inventory": [], "name": "Hero", "selectedCharacter": 1,
-    "settings": {"darkMode": False, "notifications": True, "sound": True},
-    "totalDays": 0, "unlockedRewards": [], "achievements": [], "dob": None
-}
-
-# --- ROUTES ---
-@app.get("/")
-def home():
-    return {"status": "online", "engine": "Haru-AI-v5"}
+    if email:
+        log.db_log("OTP_SERVICE", f"Attempting Real Email delivery to {email}", "INFO")
+        success = send_email_otp(email, otp)
+        if success:
+            return {"success": True, "message": "Email sent"}
+        else:
+            return {"success": False, "message": "Email failed"}
+    
+    log.db_log("OTP_SERVICE", f"SMS Simulation ONLY for {phone}", "WARNING")
+    return {"success": True, "message": "SMS Simulated"}
 
 @app.post("/debug/log")
-def debug_log(data: Dict[str, Any]):
-    safe_print(f"[LOG] {data.get('message', 'empty')}")
-    return {"ok": True}
+def debug_log(req: DebugLogRequest):
+    log.db_log("DEBUG", req.message, "INFO")
+
+@app.post("/auth/phone")
+def auth_phone(req: PhoneAuthRequest):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        user = conn.execute("SELECT * FROM users WHERE phone = ?", (req.phone,)).fetchone()
+        if not user:
+            uid = f"phone_{int(time.time())}"
+            conn.execute("INSERT INTO users (uid, name, phone, role, provider) VALUES (?,?,?,?,?)",
+                         (uid, "Phone Hero", req.phone, "hero", "phone"))
+            conn.execute("INSERT OR IGNORE INTO game_stats (uid) VALUES (?)", (uid,))
+            conn.commit()
+            user = conn.execute("SELECT * FROM users WHERE uid = ?", (uid,)).fetchone()
+            log.db_log("AUTH", f"New phone user: {req.phone}", "INFO")
+        else:
+            log.db_log("AUTH", f"Phone login: {req.phone}", "INFO")
+        
+        token = create_token({"uid": user['uid'], "phone": req.phone})
+        return {"success": True, "token": token, "user": dict(user)}
+    except Exception as e:
+        log.db_log("AUTH", f"Phone auth failed: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.post("/users/{uid}")
+def update_profile(uid: str, req: UserProfileUpdate):
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        # Update name/email if provided
+        if req.name or req.email:
+            conn.execute("UPDATE users SET name = COALESCE(?, name), email = COALESCE(?, email) WHERE uid = ?",
+                         (req.name, req.email, uid))
+        
+        # Save nested userData to game_stats if provided
+        if req.userData:
+            lvl = req.userData.get("level", 1)
+            xp = req.userData.get("xp", 0)
+            gold = req.userData.get("gold", 0)
+            hp = req.userData.get("enamelHealth", 100)
+            char_id = req.userData.get("selectedCharacter", 1)
+            streak = req.userData.get("currentStreak", 0)
+            
+            conn.execute("""
+                UPDATE game_stats SET 
+                    level = ?, xp = ?, gold = ?, enamel_health = ?,
+                    selected_character = ?, current_streak = ?,
+                    completed_chapters = ?
+                WHERE uid = ?
+            """, (lvl, xp, gold, hp, char_id, streak, json.dumps(req.userData.get("completedChapters", [])), uid))
+            
+        conn.commit()
+        log.db_log("USERS", f"Updated profile for {uid} (Sync)", "INFO")
+        return {"success": True}
+    except Exception as e:
+        log.db_log("USERS", f"Update failed for {uid}: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+# --- AUTH ROUTES ---
+@app.post("/auth/sync")
+def sync_firebase_user(req: SyncRequest):
+    """Bridges Firebase Auth with Local Python Persistence"""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        # 1. Upsert User
+        conn.execute("""
+            INSERT INTO users (uid, name, email, avatar_url, provider)
+            VALUES (?,?,?,?,?)
+            ON CONFLICT(uid) DO UPDATE SET
+                name = excluded.name,
+                avatar_url = excluded.avatar_url,
+                provider = excluded.provider
+        """, (req.uid, req.name, req.email, req.avatar_url, req.provider))
+        
+        # 2. Ensure Game Stats exist
+        conn.execute("INSERT OR IGNORE INTO game_stats (uid) VALUES (?)", (req.uid,))
+        conn.commit()
+        
+        log.db_log("SYNC", f"Firebase user synced: {req.email} ({req.provider})", "INFO")
+        return {"success": True, "uid": req.uid}
+    except Exception as e:
+        log.db_log("SYNC", f"Sync failed for {req.email}: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
 
 @app.post("/auth/register")
-def register(user: UserRegister, db_info=Depends(get_db)):
-    cursor, db = db_info
-    cursor.execute("SELECT * FROM users WHERE email = ?", (user.email,))
-    if cursor.fetchone():
-        raise HTTPException(400, "Email exists")
-    
-    uid = f"local_{random.randint(1000, 9999)}"
-    hashed = PWD_CONTEXT.hash(user.password) if PWD_CONTEXT else user.password
-    data = INITIAL_USER_DATA.copy()
-    data.update({"name": user.name, "email": user.email})
+def register(req: RegisterRequest):
+    uid = f"local_{int(time.time())}"
+    hashed = hash_pw(req.password)
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        # CHECK PHONE UNIQUENESS
+        if req.phone:
+            exists = conn.execute("SELECT uid FROM users WHERE phone = ?", (req.phone,)).fetchone()
+            if exists:
+                log.db_log("AUTH", f"Registration failed: Phone {req.phone} already exists", "ERROR")
+                raise HTTPException(status_code=400, detail="Phone number already registered")
 
-    cursor.execute("INSERT INTO users (uid, name, email, password_hash, role, level, total_stars, userData) VALUES (?,?,?,?,?,?,?,?)",
-                   (uid, user.name, user.email, hashed, user.role, 1, 0, json.dumps(data)))
-    db.commit()
-    return {"success": True, "user": {"id": uid, "name": user.name}}
+        conn.execute("INSERT INTO users (uid, name, email, password, role, dob, phone) VALUES (?,?,?,?,?,?,?)",
+                     (uid, req.name, req.email, hashed, req.role, req.dob, req.phone))
+        conn.execute("INSERT INTO game_stats (uid) VALUES (?)", (uid,))
+        conn.commit()
+        log.db_log("AUTH", f"User registered: {req.email} (uid: {uid})", "INFO")
+        return {"success": True, "token": create_token({"uid": uid, "email": req.email}), "user": {"uid": uid, "name": req.name, "email": req.email, "role": req.role}}
+    except sqlite3.IntegrityError:
+        log.db_log("AUTH", f"Registration failed: {req.email} already exists", "ERROR")
+        raise HTTPException(status_code=400, detail="Email already registered")
+    except Exception as e:
+        log.db_log("AUTH", f"Registration failed for {req.email}: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+    finally:
+        conn.close()
 
 @app.post("/auth/login")
-def login(user: UserLogin, db_info=Depends(get_db)):
-    cursor, db = db_info
-    cursor.execute("SELECT * FROM users WHERE email = ?", (user.email,))
-    row = cursor.fetchone()
-    if not row or not PWD_CONTEXT.verify(user.password, row["password_hash"]):
-        raise HTTPException(401, "Invalid credentials")
+def login(req: LoginRequest):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    user = conn.execute("SELECT * FROM users WHERE email = ?", (req.email,)).fetchone()
+    conn.close()
     
-    token = jwt.encode({"uid": row["uid"], "exp": datetime.utcnow() + timedelta(days=7)}, SECRET_KEY, algorithm=ALGORITHM)
-    return {"success": True, "token": token, "user": {"id": row["uid"], "name": row["name"]}}
+    if user and check_pw(req.password, user['password']):
+        log.db_log("AUTH", f"User logged in: {req.email}", "INFO")
+        token = create_token({"uid": user['uid'], "email": user['email']})
+        return {"success": True, "token": token, "user": dict(user)}
+    
+    log.db_log("AUTH", f"Login failed: {req.email}", "ERROR")
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
-@app.post("/ai/process")
-async def process_ai(request: AIProcessRequest):
+# --- USER & GAME ROUTES ---
+@app.get("/users/{uid}")
+def get_profile(uid: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    user = conn.execute("SELECT name, email, role, dob, avatar_url FROM users WHERE uid = ?", (uid,)).fetchone()
+    stats = conn.execute("SELECT * FROM game_stats WHERE uid = ?", (uid,)).fetchone()
+    conn.close()
+    
+    if not user:
+        # Auto-create profile if missing (helps with offline migration)
+        log.db_log("USERS", f"Auto-creating missing profile for {uid}", "INFO")
+        conn = sqlite3.connect(DB_PATH)
+        conn.execute("INSERT OR IGNORE INTO users (uid, name, role) VALUES (?,?,?)", (uid, "Guest Hero", "hero"))
+        conn.execute("INSERT OR IGNORE INTO game_stats (uid) VALUES (?)", (uid,))
+        conn.commit()
+        conn.close()
+        return {"uid": uid, "name": "Guest Hero", "role": "hero", "gameStats": {"level": 1, "xp": 0, "gold": 0}}
+        
+    res = dict(user)
+    res["gameStats"] = dict(stats) if stats else {}
+    
+    # Fetch recent notifications
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    notes = conn.execute("SELECT id, message, type, status, created_at FROM notifications WHERE receiver_uid = ? ORDER BY created_at DESC LIMIT 10", (uid,)).fetchall()
+    res["notifications"] = [dict(n) for n in notes]
+    conn.close()
+    
+    log.db_log("USERS", f"Fetched profile for {uid} with {len(notes)} notifications", "INFO")
+    return res
+
+@app.post("/game/{uid}/sync")
+def sync_game(uid: str, req: GameSyncRequest):
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("""
+        UPDATE game_stats SET level=?, xp=?, gold=?, enamel_health=?, current_streak=?
+        WHERE uid = ?
+    """, (req.level, req.xp, req.gold, req.enamel_health, req.current_streak, uid))
+    conn.commit()
+    conn.close()
+    log.db_log("GAME", f"Synced stats for {uid} | level={req.level} xp={req.xp}", "INFO")
+    return {"success": True}
+
+@app.post("/game/{uid}/xp")
+def add_xp(uid: str, req: Dict[str, Any]):
+    amount = req.get('amount', 0)
+    conn = sqlite3.connect(DB_PATH)
+    conn.execute("UPDATE game_stats SET xp = xp + ? WHERE uid = ?", (amount, uid))
+    conn.commit()
+    conn.close()
+    log.db_log("GAME", f"Added {amount} XP to {uid}", "INFO")
+    return {"success": True}
+
+@app.post("/game/{uid}/brushing-log")
+def add_brushing_log(uid: str, req: Dict[str, Any]):
+    conn = sqlite3.connect(DB_PATH)
     try:
-        user_input = request.text
-        audio_b64 = request.audio
+        conn.execute("""
+            INSERT INTO brushing_logs (uid, duration_seconds, quality_score, session_date)
+            VALUES (?, ?, ?, ?)
+        """, (uid, req.get('duration_seconds', 120), req.get('quality_score', 80), datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+        log.db_log("GAME", f"Added brushing log for {uid}", "INFO")
+        return {"success": True}
+    finally:
+        conn.close()
+
+@app.post("/quests/{uid}/progress")
+def update_quest_progress(uid: str, req: Dict[str, Any]):
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        q_id = req.get('quest_id')
+        inc = req.get('increment', 1)
+        # Simple upsert for quest progress
+        conn.execute("""
+            INSERT INTO user_quests (uid, quest_id, progress)
+            VALUES (?, ?, ?)
+            ON CONFLICT(uid, quest_id) DO UPDATE SET
+                progress = progress + excluded.progress,
+                last_updated = CURRENT_TIMESTAMP
+        """, (uid, q_id, inc))
+        conn.commit()
+        return {"success": True}
+    finally:
+        conn.close()
+
+# --- ROLE-BASED & DASHBOARD DATA ---
+@app.get("/leaderboard")
+def get_leaderboard(filter: str = "stars"):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        # We join users with game_stats to get names and stars/streaks
+        if filter == "stars":
+            order_by = "gs.gold DESC"
+        else:
+            order_by = "gs.current_streak DESC"
+            
+        rows = conn.execute(f"""
+            SELECT u.uid, u.name, u.avatar_url, gs.gold as stars, gs.current_streak as streak, gs.selected_character
+            FROM users u
+            JOIN game_stats gs ON u.uid = gs.uid
+            WHERE u.role = 'hero'
+            ORDER BY {order_by}
+            LIMIT 50
+        """).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+@app.get("/teacher/{teacher_uid}/students")
+def get_teacher_students(teacher_uid: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("""
+            SELECT u.uid, u.name, gs.level, gs.gold as stars, gs.enamel_health as health, gs.selected_character as character
+            FROM users u
+            JOIN user_relations ur ON u.uid = ur.child_uid
+            JOIN game_stats gs ON u.uid = gs.uid
+            WHERE ur.parent_uid = ? AND ur.relation_type = 'teacher_student'
+        """, (teacher_uid,)).fetchall()
         
-        if not GOOGLE_GEMINI_API_KEY:
-            safe_print("[AI] ERROR: Missing Gemini API Key!")
-            return {"success": False, "text": "I need my magical key (API Key) to help you!"}
+        # If no students found, we might want to return some "mock" data that exists in DB 
+        # but for now let's just return real ones
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
-        safe_print(f"[AI] Request: Text={bool(user_input)}, Audio={bool(audio_b64)}")
+@app.get("/parent/{parent_uid}/children")
+def get_parent_children(parent_uid: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        rows = conn.execute("""
+            SELECT u.*, gs.*
+            FROM users u
+            JOIN user_relations ur ON u.uid = ur.child_uid
+            JOIN game_stats gs ON u.uid = gs.uid
+            WHERE ur.parent_uid = ? AND ur.relation_type = 'parent_child'
+        """, (parent_uid,)).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+@app.post("/reminders/send")
+def send_reminder(req: ReminderRequest):
+    print(f"\n[REMINDER_DEBUG] Sender: {req.sender_uid} | Receiver: {req.receiver_uid}")
+    sender = req.sender_uid
+    receiver = req.receiver_uid
+    msg = req.message
+    rtype = req.type
+    
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("""
+            INSERT INTO notifications (sender_uid, receiver_uid, message, type)
+            VALUES (?, ?, ?, ?)
+        """, (sender, receiver, msg, rtype))
+        conn.commit()
+        log.db_log("NOTIFY", f"Reminder sent from {sender} to {receiver}", "INFO")
+        return {"success": True}
+    finally:
+        conn.close()
+
+@app.post("/relations/link")
+def link_relation(req: LinkRequest):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        # 1. Find the child by email or phone
+        child = conn.execute("SELECT uid FROM users WHERE email = ? OR phone = ?", (req.child_identifier, req.child_identifier)).fetchone()
         
-        # 1. Audio Transcribe (Using REST if audio is present)
-        # Note: direct audio-to-text via REST is bit complex, 
-        # for now we focus on the text path which is where the crash happens.
-        # If user provides audio, we'll try to find text or return fallback.
+        if not child:
+            raise HTTPException(status_code=404, detail="Child/Student not found with that email or phone.")
         
-        if not user_input and not audio_b64:
-            return {"success": False, "text": "I didn't hear anything! Could you please speak up?"}
-
-        # 2. Brain (Mockup Plan Fast-Track OR Gemini REST)
-        tanu_answer = None
-        user_lower = user_input.lower() if user_input else ""
+        child_uid = child['uid']
         
-        # --- THE MOCKUP PLAN ---
-        # Pre-determined answers for default dental questions (guarantees zero crashes)
-        mock_responses = [
-            (["hello", "hi ", "hey", "who"], "Hello there! I'm Guide Tanu, your Royal Guide to the Tooth Kingdom!"),
-            (["how", "brush", "properly", "way", "do i"], "Brush your teeth in small circles for two whole minutes! Don't forget to reach the back!"),
-            (["pain", "hurt", "bleed", "blood", "ache"], "Oh no! If your teeth hurt, you should tell your parents so they can schedule a dentist visit!"),
-            (["sugar", "candy", "sweet", "chocolate"], "Candy is yummy, but Sugar Bugs love it too! Make sure to brush nicely after eating sweet treats!"),
-            (["why", "important", "cavity", "decay"], "Brushing keeps the Sugar Bugs away and your teeth strong and shiny!"),
-        ]
+        # 2. Create the relation
+        conn.execute("""
+            INSERT OR IGNORE INTO user_relations (parent_uid, child_uid, relation_type)
+            VALUES (?, ?, ?)
+        """, (req.parent_uid, child_uid, req.relation_type))
+        conn.commit()
         
-        for keywords, answer in mock_responses:
-            if any(kw in user_lower for kw in keywords):
-                tanu_answer = answer
-                safe_print(f"[AI MOCKUP] Matched keyword! Fast-tracking response.")
-                break
-                
-        # --- GEMINI FALLBACK (If no mockup keyword matches) ---        
-        if not tanu_answer:
-            try:
-                # Try v1 first as it's more stable
-                url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
-                headers = {"Content-Type": "application/json"}
-                params = {"key": GOOGLE_GEMINI_API_KEY}
-                
-                system_instruction = (
-                    "You are Tanu, the cheerful dental guide. Answer briefly (2 sentences). "
-                    "Only talk about teeth, hygiene, or the Tooth Kingdom. "
-                    "No emojis, just friendly text."
-                )
-                
-                payload = {
-                    "contents": [{
-                        "parts": [{"text": f"{system_instruction}\n\nUser Question: {user_input or 'Hello!'}"}]
-                    }],
-                    "generationConfig": {"temperature": 0.7, "maxOutputTokens": 100}
-                }
-                
-                resp = requests.post(url, json=payload, headers=headers, params=params, timeout=12)
-                
-                # Fallback to PRO if FLASH fails
-                if resp.status_code != 200:
-                    safe_print(f"[AI] Flash Model fail ({resp.status_code}), trying Pro...")
-                    url_fallback = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent"
-                    resp = requests.post(url_fallback, json=payload, headers=headers, params=params, timeout=12)
-
-                if resp.status_code == 200:
-                    result = resp.json()
-                    try:
-                        tanu_answer = result['candidates'][0]['content']['parts'][0]['text'].strip()
-                        # Final guard: Remove any remaining emojis that might crash older terminals
-                        tanu_answer = "".join(c for c in tanu_answer if ord(c) < 65536)
-                    except Exception as pe:
-                        safe_print(f"[AI Parse Error] {pe}")
-                        tanu_answer = "I'm not sure, but remember to brush twice a day!"
-                else:
-                    safe_print(f"[AI FINAL FAIL] Code: {resp.status_code}")
-                    tanu_answer = "I'm having a little trouble thinking! Let's talk about brushing!"
-                    
-            except Exception as ge:
-                safe_print(f"[AI Brain Global Error] {ge}")
-                tanu_answer = "I'm having a little trouble thinking! Let's talk about brushing!"
-
-        # 3. Voice (ElevenLabs REST)
-        tanu_audio_b64 = None
-        if ELEVENLABS_API_KEY and tanu_answer:
-            try:
-                v_id = "EXAVITQu4voX998R6I7k"
-                v_url = f"https://api.elevenlabs.io/v1/text-to-speech/{v_id}"
-                v_headers = {"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"}
-                v_payload = {
-                    "text": tanu_answer[:250], # Safety cap
-                    "model_id": "eleven_monolingual_v1",
-                    "voice_settings": {"stability": 0.5, "similarity_boost": 0.7}
-                }
-                tts_resp = requests.post(v_url, json=v_payload, headers=v_headers, timeout=10)
-                if tts_resp.status_code == 200:
-                    tanu_audio_b64 = base64.b64encode(tts_resp.content).decode('utf-8')
-                    safe_print(f"[AI] Harmony Voice Ready.")
-                else:
-                    safe_print(f"[AI Voice API] {tts_resp.status_code}")
-            except Exception as te:
-                safe_print(f"[AI Voice Error] {te}")
-
-
-        return {
-            "success": True,
-            "text": tanu_answer,
-            "audio": tanu_audio_b64,
-            "query": user_input
-        }
-
+        log.db_log("RELATIONS", f"Link created: {req.parent_uid} -> {child_uid} ({req.relation_type})", "INFO")
+        return {"success": True, "message": "Link successful!", "child_uid": child_uid}
     except Exception as e:
-        safe_print(f"[AI GLOBAL CRASH] {e}")
-        log_error("AI_PROCESS_TOTAL", e)
-        return {"success": False, "text": "My crown is buzzing! Let's try once more."}
+        log.db_log("ERROR", f"Linking failed: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+@app.get("/notifications/{uid}")
+def get_notifications(uid: str):
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        notes = conn.execute("""
+            SELECT * FROM notifications WHERE receiver_uid = ? ORDER BY created_at DESC LIMIT 20
+        """, (uid,)).fetchall()
+        return [dict(n) for n in notes]
+    finally:
+        conn.close()
+
+@app.post("/rewards/unlock")
+def unlock_reward(uid: str, reward_id: int, cost: int):
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        # 1. Check if user has enough stars
+        stats = conn.execute("SELECT gold FROM game_stats WHERE uid = ?", (uid,)).fetchone()
+        if not stats or stats[0] < cost:
+            return {"success": False, "message": "Not enough stars"}
+            
+        # 2. Add to unlocked_rewards and deduct gold
+        conn.execute("INSERT OR IGNORE INTO unlocked_rewards (uid, reward_id) VALUES (?,?)", (uid, reward_id))
+        conn.execute("UPDATE game_stats SET gold = gold - ? WHERE uid = ?", (cost, uid))
+        conn.commit()
+        return {"success": True}
+    finally:
+        conn.close()
+
+# --- AI & ANALYTICS ---
+@app.post("/process")
+@app.post("/ai/process")
+async def process_ai(req: AIRequest):
+    # Mock AI for stability (User can add Gemini later)
+    response = f"Hello! I am Tanu. You told me: {req.text}. Remember to brush twice a day!"
+    log.db_log("AI", f"Processed chat request: {req.text[:20]}...", "INFO")
+    return {"text": response, "audio": None}
+
+# --- DEBUG ROUTES INTROSPECTION ---
+@app.get("/debug/routes")
+def list_routes():
+    routes = [{"path": r.path, "methods": list(r.methods)} for r in app.routes if hasattr(r, 'methods')]
+    return {"total": len(routes), "routes": routes}
+
+# --- SYSTEM ---
+@app.get("/")
+def health():
+    return {"status": "online", "version": "3.0.0 (Solid Architecture)"}
 
 if __name__ == "__main__":
-    safe_print("=" * 30)
-    safe_print("  HARU AI BACKEND v5.0")
-    safe_print("=" * 30)
-    try:
-        uvicorn.run(app, host="0.0.0.0", port=8010, log_level="info")
-    except Exception as e:
-        log_error("UVICORN_START", e)
-        safe_print(f"[FATAL] Server Error: {e}")
-        input("Press ENTER to close...")
+    init_db()
+    print("=" * 60)
+    print("    TOOTH KINGDOM ADVENTURE v3.0")
+    print("    ABSOLUTE STABILITY ENGINE")
+    print("=" * 60)
+    print("\n🔗 REGISTERED ROUTES:")
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            methods = list(route.methods)
+            print(f"   {', '.join(methods):<8} {route.path}")
+    print("=" * 60 + "\n")
+    uvicorn.run(app, host="0.0.0.0", port=8010, log_level="error", access_log=False)

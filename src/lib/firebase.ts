@@ -52,7 +52,7 @@ const getBackendUrl = () => {
         // We default to the known backend port 8010.
         if (hostname === 'localhost' || hostname === '127.0.0.1') {
             if (isNative) return 'http://10.0.2.2:8010'; // Standard Android Emulator-to-PC bridge
-            return 'http://127.0.0.1:8010'; 
+            return 'http://localhost:8010'; 
         }
         return `http://${hostname}:8010`;
     }
