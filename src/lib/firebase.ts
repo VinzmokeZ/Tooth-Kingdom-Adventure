@@ -37,23 +37,30 @@ const getBackendUrl = () => {
     const envUrl = metaEnv.VITE_LOCAL_BACKEND_URL;
     if (envUrl) return envUrl;
 
-    // Check if we are in a production browser environment
-    if (typeof window !== 'undefined' && (import.meta as any).env?.PROD) {
-        // In "Hybrid Zero-Install" mode, we serve api.php from the root of the build
-        return `${window.location.origin}/api.php`;
-    }
-
     // Fallback to dynamic hostname for LAN dev (handles localhost, 127.0.0.1, and IPs)
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
         const isNative = (window as any).Capacitor?.isNative;
-        
-        // On physical Android, 'localhost' is the phone. 10.0.2.2 is the Emulator's bridge to PC.
-        // We default to the known backend port 8010.
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            if (isNative) return 'http://10.0.2.2:8010'; // Standard Android Emulator-to-PC bridge
-            return 'http://localhost:8010'; 
+        const isEmulator = (window as any).Capacitor?.isEmulator;
+
+        // On Native (Android/iOS), we prioritize the Python backend at :8010
+        if (isNative) {
+            // Emulator needs 10.0.2.2 to reach PC host.
+            // Physical device with `adb reverse tcp:8010 tcp:8010` uses localhost directly.
+            if (isEmulator) return 'http://10.0.2.2:8010';
+            return 'http://localhost:8010';
         }
+
+        // Web (Dev/Prod)
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return 'http://localhost:8010';
+        }
+        
+        // PROD Web Fallback (Api.php if hosted as a site)
+        if ((import.meta as any).env?.PROD) {
+            return `${window.location.origin}/api.php`;
+        }
+        
         return `http://${hostname}:8010`;
     }
     return 'http://127.0.0.1:8010';
