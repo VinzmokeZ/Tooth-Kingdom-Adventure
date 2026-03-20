@@ -122,7 +122,7 @@ if __name__ == "__main__":
     while True:
         try:
             render()
-            time.sleep(5)
+            time.sleep(1.5)
         except KeyboardInterrupt:
             print(f"\n{Fore.YELLOW}DB Viewer closed.")
             sys.exit(0)

@@ -6,6 +6,7 @@ import { GameProvider, useGame } from './context/GameContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from 'next-themes';
 import { Star, Heart, Award, Coins } from 'lucide-react';
+import { App as CapacitorApp, URLOpenListenerEvent } from '@capacitor/app';
 import { LOCAL_BACKEND_URL } from './lib/firebase';
 import { useSound } from './hooks/useSound';
 import { AnimatedBackground } from './components/AnimatedBackground';
@@ -13,6 +14,31 @@ import { AnimatedBackground } from './components/AnimatedBackground';
 // Inner component to handle screen state, now that data is in Context
 const AppContent = () => {
   const [currentScreen, setCurrentScreen] = useState<string>('splash');
+  
+  // Deep Link Listener for Wireless IP Sync
+  useEffect(() => {
+    const setupDeepLink = async () => {
+      CapacitorApp.addListener('appUrlOpen', (data: URLOpenListenerEvent) => {
+        console.log('[DEEP LINK] Received URL:', data.url);
+        try {
+          // Pattern: toothkingdom://set-ip?ip=192.168.1.5
+          const url = new URL(data.url);
+          if (url.host === 'set-ip') {
+            const ip = url.searchParams.get('ip');
+            if (ip) {
+              console.log('[DEEP LINK] Syncing Backend IP:', ip);
+              localStorage.setItem('BACKEND_IP_OVERRIDE', ip);
+              // Force reload to apply new IP in firebase.ts
+              window.location.reload();
+            }
+          }
+        } catch (e) {
+          console.error('[DEEP LINK] Invalid URL received:', data.url);
+        }
+      });
+    };
+    setupDeepLink();
+  }, []);
   const { userData, updateUserData } = useGame();
   const { theme, setTheme } = useTheme();
   const { currentUser, loading: authLoading } = useAuth();
@@ -25,36 +51,36 @@ const AppContent = () => {
 
   // Global Reward Animation State
   const [rewardFeedback, setRewardFeedback] = useState<{ type: 'xp' | 'gold' | 'health' | 'reward', amount?: number, name?: string } | null>(null);
-  const lastXp = useRef(userData.xp);
-  const lastGold = useRef(userData.gold);
-  const lastHealth = useRef(userData.enamelHealth);
-  const lastUnlockedCount = useRef(userData.unlockedRewards.length);
-  const lastLevel = useRef(userData.level);
+  const lastXp = useRef(userData?.xp || 0);
+  const lastGold = useRef(userData?.gold || 0);
+  const lastHealth = useRef(userData?.enamelHealth || 100);
+  const lastUnlockedCount = useRef(userData?.unlockedRewards?.length || 0);
+  const lastLevel = useRef(userData?.level || 1);
 
   // Global Reward Listener
   useEffect(() => {
-    if (userData.xp > lastXp.current) {
-      setRewardFeedback({ type: 'xp', amount: userData.xp - lastXp.current });
+    if ((userData?.xp || 0) > lastXp.current) {
+      setRewardFeedback({ type: 'xp', amount: (userData?.xp || 0) - lastXp.current });
       playSound('success');
-      lastXp.current = userData.xp;
+      lastXp.current = userData?.xp || 0;
     }
-    if ((userData.gold || 0) > (lastGold.current || 0)) {
-      setRewardFeedback({ type: 'gold', amount: (userData.gold || 0) - (lastGold.current || 0) });
+    if ((userData?.gold || 0) > (lastGold.current || 0)) {
+      setRewardFeedback({ type: 'gold', amount: (userData?.gold || 0) - (lastGold.current || 0) });
       playSound('success');
-      lastGold.current = userData.gold;
+      lastGold.current = userData?.gold || 0;
     }
-    if (userData.enamelHealth > lastHealth.current) {
-      setRewardFeedback({ type: 'health', amount: userData.enamelHealth - lastHealth.current });
-      lastHealth.current = userData.enamelHealth;
+    if ((userData?.enamelHealth || 100) > lastHealth.current) {
+      setRewardFeedback({ type: 'health', amount: (userData?.enamelHealth || 100) - lastHealth.current });
+      lastHealth.current = userData?.enamelHealth || 100;
     }
-    if (userData.unlockedRewards.length > lastUnlockedCount.current) {
+    if ((userData?.unlockedRewards?.length || 0) > lastUnlockedCount.current) {
       setRewardFeedback({ type: 'reward', name: 'New Reward Unlocked!' });
       playSound('achievement');
-      lastUnlockedCount.current = userData.unlockedRewards.length;
+      lastUnlockedCount.current = userData?.unlockedRewards?.length || 0;
     }
-    if (userData.level > lastLevel.current) {
+    if ((userData?.level || 1) > lastLevel.current) {
       playSound('levelUp');
-      lastLevel.current = userData.level;
+      lastLevel.current = userData?.level || 1;
     }
 
     if (rewardFeedback) {
@@ -150,6 +176,7 @@ const AppContent = () => {
   }, [setTheme]);
 
   const navigateTo = (screen: string) => {
+    console.log('[NAV] Navigating to:', screen);
     playSound('click');
     setCurrentScreen(screen);
   };

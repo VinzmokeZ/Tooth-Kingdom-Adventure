@@ -6,7 +6,6 @@ Covers: Auth, Users, Game, Rewards, Quests, Social, AI
 import os
 import sys
 import time
-<<<<<<< HEAD
 import json
 import sqlite3
 import bcrypt
@@ -15,6 +14,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+import socket
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import uvicorn
@@ -149,7 +149,6 @@ def init_db():
             PRIMARY KEY (uid, reward_id)
         )
     """)
-
     # 11. Notifications / Reminders
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS notifications (
@@ -192,6 +191,8 @@ class SyncRequest(BaseModel):
     name: Optional[str] = "G-Hero"
     avatar_url: Optional[str] = None
     provider: Optional[str] = "google"
+    phone: Optional[str] = None
+    role: Optional[str] = "hero"
 
 class PhoneAuthRequest(BaseModel):
     phone: str
@@ -204,6 +205,11 @@ class ReminderRequest(BaseModel):
 
 class DebugLogRequest(BaseModel):
     message: str
+
+class InteractionRequest(BaseModel):
+    component: str
+    action: str
+    data: Optional[Dict[str, Any]] = None
 
 class AIRequest(BaseModel):
     text: str
@@ -222,6 +228,7 @@ class UserProfileUpdate(BaseModel):
     userData: Optional[Dict[str, Any]] = None
     name: Optional[str] = None
     email: Optional[str] = None
+    phone: Optional[str] = None
 
 # --- SECURITY ---
 def hash_pw(pw: str) -> str:
@@ -239,57 +246,7 @@ def create_token(data: dict):
 
 # --- APP SETUP ---
 app = FastAPI(title="Tooth Kingdom Adventure - Solid Backend v4.0")
-=======
-import socket
-import faulthandler
-from datetime import datetime
-from typing import Any
-from dotenv import load_dotenv
 
-# Crash logger (writes hard crash to file before terminal dies)
-faulthandler.enable(file=open(
-    os.path.join(os.path.dirname(__file__), 'hard_crash.log'), 'w'
-))
-
-# Load .env from project root (two levels up from backend/python/)
-load_dotenv(os.path.join(os.path.dirname(__file__), '..', '..', '.env'))
-
-try:
-    from fastapi import FastAPI, Request, Response
-    from fastapi.middleware.cors import CORSMiddleware
-    from fastapi.responses import JSONResponse
-    import uvicorn
-except ImportError as e:
-    print(f"[FATAL] Missing core libraries: {e}")
-    print("[FATAL] Run: pip install fastapi uvicorn python-dotenv")
-    sys.exit(1)
-
-# ── Our custom modules ─────────────────────────────────────
-sys.path.insert(0, os.path.dirname(__file__))
-
-import logger as log
-from db.init_db import init_all_databases
-from routers import auth, users, game, rewards, quests, social, ai as ai_router
-
-# ── Initialize all 6 databases on startup ─────────────────
-try:
-    init_all_databases()
-    log.success("All 6 databases ready (auth, game, rewards, quests, social, ai)")
-except Exception as e:
-    log.error("Database initialization failed", e)
-    sys.exit(1)
-
-# ── App setup ──────────────────────────────────────────────
-app = FastAPI(
-    title="Tooth Kingdom Adventure - API",
-    description="Python backend for the Tooth Kingdom Adventure app",
-    version="2.0.0",
-    docs_url="/docs",         # Swagger UI at http://localhost:8010/docs
-    redoc_url="/redoc"
-)
-
-# CORS — allow all origins for local dev + Android phone on same LAN
->>>>>>> 7202e6ef40987237d747d24a920e2c14e55500f8
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -298,7 +255,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-<<<<<<< HEAD
 @app.middleware("http")
 async def log_middleware(request: Request, call_next):
     start = time.time()
@@ -307,29 +263,58 @@ async def log_middleware(request: Request, call_next):
     log.api_log(request.method, request.url.path, response.status_code, duration)
     return response
 
-def send_email_otp(target_email: str, otp: str):
-    smtp_user = os.getenv("SMTP_EMAIL")
-    smtp_pass = os.getenv("SMTP_PASSWORD")
+@app.post("/debug/interaction")
+async def log_interaction(req: InteractionRequest):
+    """Verbose Logcat-style logging for frontend interactions"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    color = "\033[95m" # Purple
+    reset = "\033[0m"
+    bold = "\033[1m"
     
-    if not smtp_user or not smtp_pass:
-        log.db_log("OTP_SERVICE", f"SKIP REAL EMAIL: SMTP credentials missing in .env", "WARNING")
-        return False
+    print(f"{color}[INTERACTION] [{timestamp}] {bold}{req.component.upper()}{reset} {color}>> {req.action}{reset}")
+    if req.data:
+        print(f"      Data: {json.dumps(req.data)}")
+    return {"status": "logged"}
 
+def send_email_otp(target_email: str, otp: str):
+    smtp_user = os.getenv("SMTP_EMAIL", "toothkingdomadventures@gmail.com")
+    smtp_pass = os.getenv("SMTP_PASSWORD", "hmju lvdg pmqp ybrf")
+    
+    msg = EmailMessage()
+    msg.set_content(f"Your Tooth Kingdom Adventure verification code is: {otp}\n\nDo not share this code with anyone.")
+    msg["Subject"] = "Tooth Kingdom Verification Code"
+    msg["From"] = f"Tooth Kingdom <{smtp_user}>"
+    msg["To"] = target_email
+
+    # PHASE 1: Try Port 587 (STARTTLS)
     try:
-        msg = EmailMessage()
-        msg.set_content(f"Your Tooth Kingdom Adventure verification code is: {otp}\n\nDo not share this code with anyone.")
-        msg["Subject"] = "Tooth Kingdom Verification Code"
-        msg["From"] = smtp_user
-        msg["To"] = target_email
-
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(smtp_user, smtp_pass)
-            smtp.send_message(msg)
+        # Resolve to IPv4 silently unless it fails
+        gmail_host = "smtp.gmail.com"
+        addr_info = socket.getaddrinfo(gmail_host, 587, socket.AF_INET, socket.SOCK_STREAM)
+        ipv4_target = addr_info[0][4][0]
         
-        log.db_log("OTP_SERVICE", f"REAL EMAIL SENT to {target_email}", "INFO")
+        with smtplib.SMTP(ipv4_target, 587, timeout=30) as server:
+            server.set_debuglevel(0) # SILENT
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        log.db_log("OTP_SERVICE", f"✅ SUCCESS: Email sent to {target_email}", "INFO")
         return True
     except Exception as e:
-        log.db_log("OTP_SERVICE", f"FAILED to send real email to {target_email}: {e}", "ERROR")
+        log.db_log("OTP_SERVICE", f"Port 587 failed: {str(e)}", "WARNING")
+
+    # PHASE 2: Fallback to Port 465 (SSL)
+    try:
+        with smtplib.SMTP_SSL(ipv4_target, 465, timeout=30) as server:
+            server.set_debuglevel(0) # SILENT
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+        log.db_log("OTP_SERVICE", f"✅ SUCCESS: Email sent (SSL Fallback) to {target_email}", "INFO")
+        return True
+    except Exception as e:
+        log.db_log("OTP_SERVICE", f"❌ TOTAL SMTP FAILURE: {str(e)}", "ERROR")
+        if "10060" in str(e):
+            log.db_log("OTP_SERVICE", "⚠️  CRITICAL: Port 587/465 is BLOCKED by your Firewall or ISP!", "CRITICAL")
         return False
 
 @app.post("/auth/send-otp")
@@ -362,7 +347,7 @@ def send_otp(req: OTPRequest):
         else:
             return {"success": False, "message": "Email failed"}
     
-    log.db_log("OTP_SERVICE", f"SMS Simulation ONLY for {phone}", "WARNING")
+    log.db_log("OTP_SERVICE", f"SMS Simulation ONLY for {phone} (Found Email: {email})", "WARNING")
     return {"success": True, "message": "SMS Simulated"}
 
 @app.post("/debug/log")
@@ -396,6 +381,9 @@ def auth_phone(req: PhoneAuthRequest):
 
 @app.post("/users/{uid}")
 def update_profile(uid: str, req: UserProfileUpdate):
+    if not uid or uid == "undefined" or uid == "null":
+        log.db_log("USERS", "REJECTED profile update for 'undefined' UID", "WARNING")
+        raise HTTPException(status_code=400, detail="Invalid UID")
     conn = sqlite3.connect(DB_PATH)
     try:
         # Update name/email if provided
@@ -429,30 +417,121 @@ def update_profile(uid: str, req: UserProfileUpdate):
     finally:
         conn.close()
 
+@app.post("/users/{uid}/profile")
+def update_profile(uid: str, req: UserProfileUpdate):
+    """Updates user profile and triggers identity consolidation if email/phone provided"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    try:
+        # 1. Trigger Consolidation FIRST
+        # If the user is adding an email/phone that belongs to another account, 
+        # we merge that other account into this one BEFORE updating.
+        consolidate_identity(conn, uid, req.email, req.phone)
+        
+        # 2. Update the current profile
+        if req.name:
+            conn.execute("UPDATE users SET name = ? WHERE uid = ?", (req.name, uid))
+        if req.email:
+            conn.execute("UPDATE users SET email = ? WHERE uid = ?", (req.email, uid))
+        if req.phone:
+            conn.execute("UPDATE users SET phone = ? WHERE uid = ?", (req.phone, uid))
+        
+        conn.commit()
+        log.db_log("USERS", f"👤 PROFILE UPDATED: {uid} (Email: {req.email}, Phone: {req.phone})", "INFO")
+        return {"success": True, "message": "Profile updated and identities merged!"}
+    except Exception as e:
+        log.db_log("USERS", f"❌ UPDATE ERROR: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
 # --- AUTH ROUTES ---
+def consolidate_identity(conn, target_uid, email=None, phone=None):
+    """Helper to merge existing accounts into a new/current UID based on email OR phone"""
+    if not email and not phone: return
+    
+    # 1. Find potential match by email
+    existing_email = None
+    if email:
+        existing_email = conn.execute("SELECT uid FROM users WHERE email = ? AND uid != ? LIMIT 1", (email, target_uid)).fetchone()
+        if existing_email:
+            print(f"   [DEBUG] Found by email: {existing_email} (Type: {type(existing_email)})")
+    
+    # 2. Find potential match by phone
+    existing_phone = None
+    if phone:
+        # Normalize phone (remove + if present)
+        clean_phone = phone.replace("+", "")
+        existing_phone = conn.execute("SELECT uid FROM users WHERE (phone = ? OR phone = ?) AND uid != ? LIMIT 1", (phone, clean_phone, target_uid)).fetchone()
+        
+    # 3. Choose the old UID to merge from
+    old_uid = None
+    match_source = ""
+    if existing_email:
+        # Extra-safe index access
+        old_uid = existing_email[0]
+        match_source = f"Email ({email})"
+    elif existing_phone:
+        old_uid = existing_phone[0]
+        match_source = f"Phone ({phone})"
+        
+    if old_uid:
+        log.db_log("SYNC", f"🔄 IDENTITY MERGE: {old_uid} -> {target_uid} matched via {match_source}", "INFO")
+        
+        tables = [
+            ("users", "uid"), ("game_stats", "uid"), ("brushing_logs", "uid"),
+            ("user_quests", "uid"), ("inventory", "uid"), ("ai_chat", "uid"),
+            ("unlocked_rewards", "uid"), ("notifications", "receiver_uid"),
+            ("notifications", "sender_uid"), ("user_relations", "parent_uid"),
+            ("user_relations", "child_uid")
+        ]
+        
+        for table, col in tables:
+            try:
+                conn.execute(f"UPDATE OR IGNORE {table} SET {col} = ? WHERE {col} = ?", (target_uid, old_uid))
+            except Exception as e:
+                log.db_log("SYNC", f"Merge error {table}: {e}", "WARNING")
+        
+        # Finally delete old reference
+        conn.execute("DELETE FROM users WHERE uid = ?", (old_uid,))
+
+# --- AUTH ROUTES ---
+
 @app.post("/auth/sync")
 def sync_firebase_user(req: SyncRequest):
-    """Bridges Firebase Auth with Local Python Persistence"""
+    """Bridges Firebase Auth with Local Python Persistence - Consolidated Identity"""
+    if not req.uid or req.uid == "undefined":
+        raise HTTPException(status_code=400, detail="Invalid Firebase UID")
+        
     conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
     try:
-        # 1. Upsert User
+        # CONSOLIDATE BEFORE UPSERT
+        consolidate_identity(conn, req.uid, req.email)
+        
+        # Now Upsert the new Profile
         conn.execute("""
             INSERT INTO users (uid, name, email, avatar_url, provider)
             VALUES (?,?,?,?,?)
             ON CONFLICT(uid) DO UPDATE SET
                 name = excluded.name,
+                email = EXCLUDED.email,
                 avatar_url = excluded.avatar_url,
                 provider = excluded.provider
         """, (req.uid, req.name, req.email, req.avatar_url, req.provider))
         
-        # 2. Ensure Game Stats exist
         conn.execute("INSERT OR IGNORE INTO game_stats (uid) VALUES (?)", (req.uid,))
+        
+        # IDENTITY CONSOLIDATION: Merge local/phone account into this Firebase account
+        consolidate_identity(conn, req.uid, req.email, req.phone)
+        
         conn.commit()
         
-        log.db_log("SYNC", f"Firebase user synced: {req.email} ({req.provider})", "INFO")
+        log.db_log("SYNC", f"✅ SYNC SUCCESS: {req.email} | UID: {req.uid}", "INFO")
         return {"success": True, "uid": req.uid}
     except Exception as e:
-        log.db_log("SYNC", f"Sync failed for {req.email}: {e}", "ERROR")
+        log.db_log("SYNC", f"❌ SYNC ERROR: {e}", "ERROR")
+        conn.rollback()
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
@@ -463,25 +542,23 @@ def register(req: RegisterRequest):
     hashed = hash_pw(req.password)
     conn = sqlite3.connect(DB_PATH)
     try:
-        # CHECK PHONE UNIQUENESS
         if req.phone:
             exists = conn.execute("SELECT uid FROM users WHERE phone = ?", (req.phone,)).fetchone()
-            if exists:
-                log.db_log("AUTH", f"Registration failed: Phone {req.phone} already exists", "ERROR")
-                raise HTTPException(status_code=400, detail="Phone number already registered")
+            if exists: raise HTTPException(status_code=400, detail="Phone already registered")
 
         conn.execute("INSERT INTO users (uid, name, email, password, role, dob, phone) VALUES (?,?,?,?,?,?,?)",
                      (uid, req.name, req.email, hashed, req.role, req.dob, req.phone))
-        conn.execute("INSERT INTO game_stats (uid) VALUES (?)", (uid,))
+        
+        conn.execute("INSERT OR IGNORE INTO game_stats (uid) VALUES (?)", (uid,))
+        
+        # CONSOLIDATE identities: Merge phone account if this email was previously used
+        consolidate_identity(conn, uid, req.email, req.phone)
+        
         conn.commit()
-        log.db_log("AUTH", f"User registered: {req.email} (uid: {uid})", "INFO")
+        log.db_log("AUTH", f"✨ NEW REGISTER: {req.email} (UID: {uid})", "INFO")
         return {"success": True, "token": create_token({"uid": uid, "email": req.email}), "user": {"uid": uid, "name": req.name, "email": req.email, "role": req.role}}
     except sqlite3.IntegrityError:
-        log.db_log("AUTH", f"Registration failed: {req.email} already exists", "ERROR")
         raise HTTPException(status_code=400, detail="Email already registered")
-    except Exception as e:
-        log.db_log("AUTH", f"Registration failed for {req.email}: {e}", "ERROR")
-        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
     finally:
         conn.close()
 
@@ -490,19 +567,30 @@ def login(req: LoginRequest):
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     user = conn.execute("SELECT * FROM users WHERE email = ?", (req.email,)).fetchone()
-    conn.close()
     
     if user and check_pw(req.password, user['password']):
-        log.db_log("AUTH", f"User logged in: {req.email}", "INFO")
-        token = create_token({"uid": user['uid'], "email": user['email']})
+        uid = user['uid']
+        log.db_log("AUTH", f"🔓 LOGIN SUCCESS: {req.email} (UID: {uid})", "INFO")
+        
+        # Consolidate identities if this email was previously used via phone or social
+        # (Needed if consolidate failed during sync/register or if data was added later)
+        consolidate_identity(conn, uid, req.email)
+        
+        token = create_token({"uid": uid, "email": user['email']})
+        conn.commit()
+        conn.close()
         return {"success": True, "token": token, "user": dict(user)}
     
-    log.db_log("AUTH", f"Login failed: {req.email}", "ERROR")
-    raise HTTPException(status_code=401, detail="Invalid credentials")
+    log.db_log("AUTH", f"❌ LOGIN FAILED: {req.email}", "WARNING")
+    conn.close()
+    raise HTTPException(status_code=401, detail="Invalid email or password")
 
 # --- USER & GAME ROUTES ---
 @app.get("/users/{uid}")
 def get_profile(uid: str):
+    if not uid or uid == "undefined" or uid == "null":
+        log.db_log("USERS", "REJECTED profile fetch for 'undefined' UID", "WARNING")
+        raise HTTPException(status_code=400, detail="Invalid UID")
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     user = conn.execute("SELECT name, email, role, dob, avatar_url FROM users WHERE uid = ?", (uid,)).fetchone()
@@ -517,23 +605,42 @@ def get_profile(uid: str):
         conn.execute("INSERT OR IGNORE INTO game_stats (uid) VALUES (?)", (uid,))
         conn.commit()
         conn.close()
-        return {"uid": uid, "name": "Guest Hero", "role": "hero", "gameStats": {"level": 1, "xp": 0, "gold": 0}}
+        res = {"uid": uid, "name": "Guest Hero", "role": "hero", "gameStats": {"level": 1, "xp": 0, "gold": 0}, "notifications": []}
+        return {"success": True, "userData": res}
         
     res = dict(user)
-    res["gameStats"] = dict(stats) if stats else {}
+    res["uid"] = uid # Ensure UID is included
+    res["gameStats"] = dict(stats) if stats else {"level": 1, "xp": 0, "gold": 0}
     
     # Fetch recent notifications
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
-    notes = conn.execute("SELECT id, message, type, status, created_at FROM notifications WHERE receiver_uid = ? ORDER BY created_at DESC LIMIT 10", (uid,)).fetchall()
-    res["notifications"] = [dict(n) for n in notes]
+    notes = conn.execute("SELECT id, message, type, status, created_at FROM notifications WHERE receiver_uid = ? ORDER BY created_at DESC LIMIT 20", (uid,)).fetchall()
+    
+    # Map DB notifications to Frontend AppNotification type
+    mapped_notes = []
+    for n in notes:
+        note_dict = dict(n)
+        mapped_notes.append({
+            "id": note_dict["id"],
+            "type": note_dict["type"] or "reminder",
+            "title": "New Message" if note_dict["type"] == "reminder" else "Achievement!",
+            "message": note_dict["message"],
+            "time": note_dict["created_at"],
+            "read": note_dict["status"] == "read",
+            "color": "from-purple-500 to-pink-500" if note_dict["type"] == "reminder" else "from-amber-400 to-orange-500",
+            "iconName": "Bell" if note_dict["type"] == "reminder" else "Award"
+        })
+    res["notifications"] = mapped_notes
     conn.close()
     
-    log.db_log("USERS", f"Fetched profile for {uid} with {len(notes)} notifications", "INFO")
-    return res
+    log.db_log("USERS", f"📦 FETCH PROFILE: {uid} | Email: {res.get('email')} | Phone: {res.get('phone')} | Notes: {len(mapped_notes)}", "INFO")
+    return {"success": True, "userData": res}
 
 @app.post("/game/{uid}/sync")
 def sync_game(uid: str, req: GameSyncRequest):
+    if not uid or uid == "undefined" or uid == "null":
+        raise HTTPException(status_code=400, detail="Invalid UID")
     conn = sqlite3.connect(DB_PATH)
     conn.execute("""
         UPDATE game_stats SET level=?, xp=?, gold=?, enamel_health=?, current_streak=?
@@ -624,8 +731,6 @@ def get_teacher_students(teacher_uid: str):
             WHERE ur.parent_uid = ? AND ur.relation_type = 'teacher_student'
         """, (teacher_uid,)).fetchall()
         
-        # If no students found, we might want to return some "mock" data that exists in DB 
-        # but for now let's just return real ones
         return [dict(r) for r in rows]
     finally:
         conn.close()
@@ -648,23 +753,16 @@ def get_parent_children(parent_uid: str):
 
 @app.post("/reminders/send")
 def send_reminder(req: ReminderRequest):
-    print(f"\n[REMINDER_DEBUG] Sender: {req.sender_uid} | Receiver: {req.receiver_uid}")
-    sender = req.sender_uid
-    receiver = req.receiver_uid
-    msg = req.message
-    rtype = req.type
-    
     conn = sqlite3.connect(DB_PATH)
-    try:
-        conn.execute("""
-            INSERT INTO notifications (sender_uid, receiver_uid, message, type)
-            VALUES (?, ?, ?, ?)
-        """, (sender, receiver, msg, rtype))
-        conn.commit()
-        log.db_log("NOTIFY", f"Reminder sent from {sender} to {receiver}", "INFO")
-        return {"success": True}
-    finally:
-        conn.close()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO notifications (sender_uid, receiver_uid, message, type) VALUES (?, ?, ?, ?)",
+        (req.sender_uid, req.receiver_uid, req.message, req.type)
+    )
+    conn.commit()
+    conn.close()
+    log.db_log("REMINDER", f"🔔 SENT: {req.sender_uid} -> {req.receiver_uid} ({req.type})", "INFO")
+    return {"success": True, "message": "Reminder sent"}
 
 @app.post("/relations/link")
 def link_relation(req: LinkRequest):
@@ -694,6 +792,21 @@ def link_relation(req: LinkRequest):
     finally:
         conn.close()
 
+@app.delete("/relations/{parent_uid}/{child_uid}")
+def unlink_student(parent_uid: str, child_uid: str):
+    """Allows a teacher or parent to remove a linked child/student"""
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        conn.execute("DELETE FROM user_relations WHERE parent_uid = ? AND child_uid = ?", (parent_uid, child_uid))
+        conn.commit()
+        log.db_log("RELATIONS", f"🗑️ UNLINKED: {parent_uid} -> {child_uid}", "INFO")
+        return {"success": True, "message": "Student unlinked successfully"}
+    except Exception as e:
+        log.db_log("RELATIONS", f"❌ UNLINK ERROR: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
 @app.get("/notifications/{uid}")
 def get_notifications(uid: str):
     conn = sqlite3.connect(DB_PATH)
@@ -702,6 +815,7 @@ def get_notifications(uid: str):
         notes = conn.execute("""
             SELECT * FROM notifications WHERE receiver_uid = ? ORDER BY created_at DESC LIMIT 20
         """, (uid,)).fetchall()
+        log.db_log("NOTIFY", f"🔔 FETCH NOTES: {uid} found {len(notes)} [REAL-TIME CHECK]", "INFO")
         return [dict(n) for n in notes]
     finally:
         conn.close()
@@ -736,17 +850,21 @@ async def process_ai(req: AIRequest):
 @app.get("/debug/routes")
 def list_routes():
     routes = [{"path": r.path, "methods": list(r.methods)} for r in app.routes if hasattr(r, 'methods')]
-    return {"total": len(routes), "routes": routes}
+    return {"total": len(routes), "routes": sorted(routes, key=lambda x: x["path"])}
 
 # --- SYSTEM ---
 @app.get("/")
 def health():
-    return {"status": "online", "version": "3.0.0 (Solid Architecture)"}
+    return {
+        "status": "online", 
+        "version": "4.0.0 (Solid Architecture)",
+        "timestamp": datetime.now().isoformat()
+    }
 
 if __name__ == "__main__":
     init_db()
     print("=" * 60)
-    print("    TOOTH KINGDOM ADVENTURE v3.0")
+    print("    TOOTH KINGDOM ADVENTURE v4.0")
     print("    ABSOLUTE STABILITY ENGINE")
     print("=" * 60)
     print("\n🔗 REGISTERED ROUTES:")
@@ -755,117 +873,4 @@ if __name__ == "__main__":
             methods = list(route.methods)
             print(f"   {', '.join(methods):<8} {route.path}")
     print("=" * 60 + "\n")
-    uvicorn.run(app, host="0.0.0.0", port=8010, log_level="error", access_log=False)
-=======
-# ── Request/Response Logger Middleware ─────────────────────
-@app.middleware("http")
-async def log_requests(request: Request, call_next):
-    start = time.perf_counter()
-    client_ip = request.client.host if request.client else "unknown"
-
-    # Skip favicon etc
-    if request.url.path in ("/favicon.ico",):
-        return await call_next(request)
-
-    try:
-        response: Response = await call_next(request)
-    except Exception as exc:
-        log.error(f"Unhandled exception on {request.method} {request.url.path}", exc)
-        return JSONResponse(status_code=500, content={"success": False, "error": str(exc)})
-
-    duration_ms = (time.perf_counter() - start) * 1000
-    log.request_log(
-        method=request.method,
-        path=request.url.path,
-        status=response.status_code,
-        duration_ms=duration_ms,
-        client_ip=client_ip
-    )
-    return response
-
-
-# ── Mount All Routers ──────────────────────────────────────
-app.include_router(auth.router)
-app.include_router(users.router)
-app.include_router(game.router)
-app.include_router(rewards.router)
-app.include_router(quests.router)
-app.include_router(social.router)
-app.include_router(ai_router.router)
-
-
-# ── Core Routes ────────────────────────────────────────────
-@app.get("/", tags=["health"])
-def health_check():
-    """Health check — returns server status and route count."""
-    return {
-        "status": "online",
-        "server": "Tooth Kingdom Adventure API v2.0",
-        "timestamp": datetime.now().isoformat(),
-        "databases": ["auth", "game", "rewards", "quests", "social", "ai"]
-    }
-
-
-@app.post("/debug/log", tags=["debug"])
-def debug_log(data: dict):
-    """Accepts log messages from the frontend and echoes them to terminal."""
-    msg = data.get("message", "(empty)")
-    log.info(f"[FRONTEND LOG] {msg}")
-    return {"ok": True}
-
-
-@app.get("/debug/routes", tags=["debug"])
-def list_routes():
-    """List all registered API routes."""
-    routes = []
-    for route in app.routes:
-        if hasattr(route, "methods") and hasattr(route, "path"):
-            for method in route.methods:
-                routes.append({"method": method, "path": route.path})
-    return {"routes": sorted(routes, key=lambda x: x["path"])}
-
-
-# ── Startup Banner ─────────────────────────────────────────
-def get_lan_ip():
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return "127.0.0.1"
-
-
-if __name__ == "__main__":
-    lan_ip = get_lan_ip()
-
-    log.banner(
-        "TOOTH KINGDOM ADVENTURE - BACKEND v2.0",
-        [
-            f"Local URL  : http://127.0.0.1:8010",
-            f"Phone URL  : http://{lan_ip}:8010   <-- use on Android",
-            f"Swagger UI : http://127.0.0.1:8010/docs",
-            f"All Routes : http://127.0.0.1:8010/debug/routes",
-            "",
-            "Databases  : auth.db | game.db | rewards.db",
-            "             quests.db | social.db | ai.db",
-            "",
-            "Press CTRL+C to stop the server.",
-        ]
-    )
-
-    try:
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=8010,
-            log_level="warning",   # Suppress uvicorn's own logs; we handle logging
-            reload=False,
-        )
-    except KeyboardInterrupt:
-        log.info("Server stopped by user.")
-    except Exception as e:
-        log.error("Server crashed", e)
-        input("\nPress ENTER to close...")
->>>>>>> 7202e6ef40987237d747d24a920e2c14e55500f8
+    uvicorn.run(app, host="0.0.0.0", port=8010, log_level="warning", access_log=False)
