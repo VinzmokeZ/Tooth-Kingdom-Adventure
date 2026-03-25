@@ -4,7 +4,7 @@ import { ArrowLeft, Shield, Sparkles, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { USE_LOCAL_BACKEND } from '../../lib/firebase';
 
-export function OTPVerificationScreen({ navigateTo, userData }: ScreenProps) {
+export function OTPVerificationScreen({ navigateTo }: ScreenProps) {
   const { confirmationResult, verifyOTPLocal, sendOTPLocal } = useAuth();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -12,9 +12,6 @@ export function OTPVerificationScreen({ navigateTo, userData }: ScreenProps) {
   const [resendTimer, setResendTimer] = useState(10);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const [mockSMS, setMockSMS] = useState<{ phone: string, code: string } | null>(null);
-
-  console.log('[DEBUG] OTPVerificationScreen - Initial Render');
-  console.log('[DEBUG] OTPVerificationScreen - userData available:', !!userData);
 
   useEffect(() => {
     // Focus first input on mount
@@ -34,7 +31,7 @@ export function OTPVerificationScreen({ navigateTo, userData }: ScreenProps) {
 
   useEffect(() => {
     // Redirect if no confirmation result (hero tried to jump link)
-    if (!confirmationResult && !import.meta.env.DEV && !USE_LOCAL_BACKEND) {
+    if (!confirmationResult && process.env.NODE_ENV === 'production' && !USE_LOCAL_BACKEND) {
       navigateTo('signin');
     }
 
@@ -134,15 +131,9 @@ export function OTPVerificationScreen({ navigateTo, userData }: ScreenProps) {
     // Generate new mock OTP
     const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const phone = localStorage.getItem('mockOTPPhone') || 'Hero';
-    let email = null;
-    try {
-        const storedUser = localStorage.getItem('currentUser');
-        if (storedUser) {
-            email = JSON.parse(storedUser).email;
-        }
-    } catch (e) {
-        console.warn("Could not parse currentUser for resend email:", e);
-    }
+    const email = localStorage.getItem('currentUser') 
+      ? JSON.parse(localStorage.getItem('currentUser')!).email 
+      : null;
 
     // Trigger real delivery via backend
     if (USE_LOCAL_BACKEND) {

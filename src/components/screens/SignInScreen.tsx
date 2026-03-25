@@ -9,10 +9,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
-  signInWithPopup,
-  GoogleAuthProvider,
-  FacebookAuthProvider,
-  OAuthProvider,
   RecaptchaVerifier,
   signInWithPhoneNumber
 } from 'firebase/auth';
@@ -221,41 +217,12 @@ export function SignInScreen({ navigateTo }: ScreenProps) {
     }
   };
 
-  const handleSocialLogin = async (providerId: string) => {
-    setError(null);
-    let provider;
-
-    switch (providerId) {
-      case 'google':
-        provider = new GoogleAuthProvider();
-        break;
-      case 'facebook':
-        provider = new FacebookAuthProvider();
-        break;
-      case 'apple':
-        provider = new OAuthProvider('apple.com');
-        break;
-      default:
-        return;
-    }
-
-    try {
-      if (providerId === 'google') {
-        await signInWithGoogleLocal();
-        navigateTo('onboarding');
-        return;
-      }
-
-      await signInWithPopup(auth, provider);
-      // Success!
-      if (use2FA) {
-        navigateTo('otp-verification');
-      } else {
-        navigateTo('onboarding');
-      }
-    } catch (err: any) {
-      setError(err.message);
-    }
+  // Social login is visually present but disabled on restricted networks (e.g. college).
+  // Buttons remain visible for UI completeness; clicking shows a friendly message.
+  const handleSocialLogin = (_providerId: string) => {
+    setError('Social login is not available on this network. Please use Email or Phone login instead. 🔒');
+    // Auto-clear the message after 4 seconds
+    setTimeout(() => setError(null), 4000);
   };
 
 
@@ -336,6 +303,13 @@ export function SignInScreen({ navigateTo }: ScreenProps) {
             <p className="text-gray-600 dark:text-gray-300 text-base font-medium">
               Join the adventure to save smiles! 🌟
             </p>
+            {/* Connection Status Indicator */}
+            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 dark:bg-black/20 border border-purple-100 dark:border-purple-900/30">
+              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+              <span className="text-[10px] font-mono text-purple-600/70 dark:text-purple-300/70">
+                Connected to: {LOCAL_BACKEND_URL}
+              </span>
+            </div>
           </div>
 
           {/* Main Card */}

@@ -34,7 +34,8 @@ export const USE_LOCAL_BACKEND = metaEnv.VITE_USE_LOCAL_BACKEND !== 'false';
 // In dev, use the env var or localhost:8000
 // In production, if USE_LOCAL_BACKEND is true, assume the API is at our current origin
 const getBackendUrl = () => {
-    const envUrl = metaEnv.VITE_LOCAL_BACKEND_URL;
+    // Direct access to import.meta.env ensures Vite replaces it at build time
+    const envUrl = import.meta.env.VITE_LOCAL_BACKEND_URL;
     if (envUrl) return envUrl;
 
     // Fallback to dynamic hostname for LAN dev (handles localhost, 127.0.0.1, and IPs)

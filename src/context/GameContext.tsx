@@ -112,13 +112,7 @@ export const GameProvider = ({ children }: { children: ReactNode }) => {
 
         if (data.success && data.userData) {
           console.log("Loaded userData from Backend:", data.userData);
-          // BUG FIX: Merge with existing state to prevent "undefined" crashes for missing fields
-          setUserData(prev => ({
-            ...prev,
-            ...data.userData,
-            questProgress: { ...(prev.questProgress || {}), ...(data.userData.questProgress || {}) },
-            settings: { ...(prev.settings || {}), ...(data.userData.settings || {}) }
-          }));
+          setUserData(data.userData);
         } else {
           // 2. If new user (no data in backend yet) but has displayName, update local
           if (currentUser.displayName && userData.name !== currentUser.displayName) {
