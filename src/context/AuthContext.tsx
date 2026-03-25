@@ -210,7 +210,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             console.error('Login error details:', error);
             
             if (error.message.includes('fetch') || error.message.includes('Network') || error.name === 'TypeError') {
-                throw new Error("CANNOT REACH BACKEND! Please make sure the 'TK-Backend' window is running.");
+                throw new Error(`CANNOT REACH BACKEND! (${error.message}). Server: ${API_URL}`);
             }
             
             throw error;

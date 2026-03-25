@@ -6,6 +6,7 @@ import { GameProvider, useGame } from './context/GameContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider, useTheme } from 'next-themes';
 import { Star, Heart, Award, Coins } from 'lucide-react';
+import { App as CapacitorApp, URLOpenListenerEvent } from '@capacitor/app';
 import { LOCAL_BACKEND_URL } from './lib/firebase';
 import { useSound } from './hooks/useSound';
 import { AnimatedBackground } from './components/AnimatedBackground';
@@ -13,6 +14,31 @@ import { AnimatedBackground } from './components/AnimatedBackground';
 // Inner component to handle screen state, now that data is in Context
 const AppContent = () => {
   const [currentScreen, setCurrentScreen] = useState<string>('splash');
+  
+  // Deep Link Listener for Wireless IP Sync
+  useEffect(() => {
+    const setupDeepLink = async () => {
+      CapacitorApp.addListener('appUrlOpen', (data: URLOpenListenerEvent) => {
+        console.log('[DEEP LINK] Received URL:', data.url);
+        try {
+          // Pattern: toothkingdom://set-ip?ip=192.168.1.5
+          const url = new URL(data.url);
+          if (url.host === 'set-ip') {
+            const ip = url.searchParams.get('ip');
+            if (ip) {
+              console.log('[DEEP LINK] Syncing Backend IP:', ip);
+              localStorage.setItem('BACKEND_IP_OVERRIDE', ip);
+              // Force reload to apply new IP in firebase.ts
+              window.location.reload();
+            }
+          }
+        } catch (e) {
+          console.error('[DEEP LINK] Invalid URL received:', data.url);
+        }
+      });
+    };
+    setupDeepLink();
+  }, []);
   const { userData, updateUserData } = useGame();
   const { theme, setTheme } = useTheme();
   const { currentUser, loading: authLoading } = useAuth();

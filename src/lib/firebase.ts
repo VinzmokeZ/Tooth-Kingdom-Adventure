@@ -34,7 +34,8 @@ export const USE_LOCAL_BACKEND = metaEnv.VITE_USE_LOCAL_BACKEND !== 'false';
 // In dev, use the env var or localhost:8000
 // In production, if USE_LOCAL_BACKEND is true, assume the API is at our current origin
 const getBackendUrl = () => {
-    const envUrl = metaEnv.VITE_LOCAL_BACKEND_URL;
+    // Direct access to import.meta.env ensures Vite replaces it at build time
+    const envUrl = import.meta.env.VITE_LOCAL_BACKEND_URL;
     if (envUrl) return envUrl;
 
     // Fallback to dynamic hostname for LAN dev (handles localhost, 127.0.0.1, and IPs)
@@ -45,6 +46,13 @@ const getBackendUrl = () => {
 
         // On Native (Android/iOS), we prioritize the Python backend at :8010
         if (isNative) {
+            // Check for manual IP override (set via TK Wireless Link)
+            const manualIp = localStorage.getItem('BACKEND_IP_OVERRIDE');
+            if (manualIp) {
+                console.log('[BACKEND] Using Manual IP Override:', manualIp);
+                return `http://${manualIp}:8010`;
+            }
+
             // Emulator needs 10.0.2.2 to reach PC host.
             // Physical device with `adb reverse tcp:8010 tcp:8010` uses localhost directly.
             if (isEmulator) return 'http://10.0.2.2:8010';
@@ -69,7 +77,7 @@ const getBackendUrl = () => {
 export const LOCAL_BACKEND_URL = getBackendUrl();
 
 if (typeof window !== 'undefined') {
-    console.log('[BACKEND] Discovered API URL:', LOCAL_BACKEND_URL);
+    console.log('[BACKEND] Final API URL:', LOCAL_BACKEND_URL);
 }
 
 // Live Mirror / Shadow Backend Configuration (For syncing while using Firebase)
