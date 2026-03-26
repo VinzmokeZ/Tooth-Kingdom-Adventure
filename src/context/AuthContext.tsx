@@ -10,6 +10,8 @@ import {
     signInWithRedirect,
     getRedirectResult
 } from 'firebase/auth';
+import { getAnalytics } from "firebase/analytics";
+import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 
 interface User {
     uid: string;

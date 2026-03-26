@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { FilesetResolver, FaceLandmarker, HandLandmarker } from '@mediapipe/tasks-vision';
 import * as Kalidokit from 'kalidokit';
+import { CapacitorHttp, HttpResponse } from '@capacitor/core';
 
 /**
  * VTuberBrushingQuest - Final Build V7
@@ -254,41 +255,48 @@ export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTub
             const cloudUrl = "https://us-central1-tooth-kingdom-adventure.cloudfunctions.net/processAI";
             log("Attempting Cloud AI...");
 
-            let response = await fetch(cloudUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text, audio }),
-                mode: 'cors'
-            }).catch(() => null);
+            let responseData: any = null;
+            try {
+                const cloudOptions = {
+                    url: cloudUrl,
+                    headers: { 'Content-Type': 'application/json' },
+                    data: { text, audio }
+                };
+                const cloudRes: HttpResponse = await CapacitorHttp.post(cloudOptions);
+                if (cloudRes.status === 200 && cloudRes.data.success) {
+                    responseData = cloudRes.data;
+                }
+            } catch (e) { log("Cloud AI Error fallback"); }
 
             // PHASE 2: Try Local PC Fallback (Skip on Mobile)
-            if (!isMobile && (!response || !response.ok)) {
+            if (!isMobile && !responseData) {
                 log(`Cloud AI unavailable. Checking Local PC...`);
                 const localUrl = "http://127.0.0.1:8010/ai/process";
-                response = await fetch(localUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: text || "Hello", audio: audio || "" })
-                }).catch(() => null);
+                try {
+                    const localOptions = {
+                        url: localUrl,
+                        headers: { 'Content-Type': 'application/json' },
+                        data: { text: text || "Hello", audio: audio || "" }
+                    };
+                    const localRes: HttpResponse = await CapacitorHttp.post(localOptions);
+                    if (localRes.status === 200 && localRes.data.success) {
+                        responseData = localRes.data;
+                    }
+                } catch (e) { log("Local PC AI Error fallback"); }
             }
 
             // PHASE 3: Offline Brain
-            if (!response || !response.ok) {
+            if (!responseData) {
                 log(`Backends reachable? No. Activating Offline Royal Brain...`);
                 fallbackOffline();
                 return;
             }
 
-            const data = await response.json();
-            if (data.success) {
-                setAiText(data.text);
-                if (data.audio) {
-                    playAudioResponse(data.audio);
-                } else {
-                    playOfflineTTS(data.text);
-                }
+            setAiText(responseData.text);
+            if (responseData.audio) {
+                playAudioResponse(responseData.audio);
             } else {
-                fallbackOffline();
+                playOfflineTTS(responseData.text);
             }
         } catch (err) {
             log(`System Error. Using Royal Fallback...`);
