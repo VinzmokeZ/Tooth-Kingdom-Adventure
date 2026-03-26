@@ -4,7 +4,7 @@ import { AnimatedBackground } from '../AnimatedBackground';
 
 export function SplashScreen({ navigateTo }: ScreenProps) {
   // Use the specific vibrant logo from public/thumbnails as requested
-  const logoPath = '/thumbnails/0e08d80797dd9be25d0e92064648e8bd56d6c30c.png';
+  const logoPath = '/thumbnails/icon.png';
 
   return (
     <div className="h-full bg-transparent flex flex-col items-center justify-center p-8 relative overflow-hidden">

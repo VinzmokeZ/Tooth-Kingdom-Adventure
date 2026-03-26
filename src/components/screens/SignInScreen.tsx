@@ -336,13 +336,7 @@ export function SignInScreen({ navigateTo }: ScreenProps) {
             <p className="text-gray-600 dark:text-gray-300 text-base font-medium">
               Join the adventure to save smiles! 🌟
             </p>
-            {/* Connection Status Indicator */}
-            <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/50 dark:bg-black/20 border border-purple-100 dark:border-purple-900/30">
-              <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-              <span className="text-[10px] font-mono text-purple-600/70 dark:text-purple-300/70">
-                Connected to: {LOCAL_BACKEND_URL}
-              </span>
-            </div>
+
           </div>
 
           {/* Main Card */}
