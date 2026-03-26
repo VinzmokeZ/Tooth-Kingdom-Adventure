@@ -83,13 +83,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 throw new Error(data.detail || 'Sync failed');
             }
 
-            user = {
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-                phoneNumber: firebaseUser.phoneNumber || null,
-                role: 'hero'
-            };
+            // v5.0 Senior Fix: Fetch the ACTUAL role from the database after sync
+            try {
+                const profileRes = await fetch(`${API_URL}/users/${firebaseUser.uid}`);
+                if (profileRes.ok) {
+                    const profileData = await profileRes.json();
+                    if (profileData.success && profileData.user) {
+                        user = {
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                            phoneNumber: firebaseUser.phoneNumber || null,
+                            role: profileData.user.role || 'hero'
+                        };
+                    } else {
+                        user = {
+                            uid: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                            phoneNumber: firebaseUser.phoneNumber || null,
+                            role: 'hero'
+                        };
+                    }
+                } else {
+                    user = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                        phoneNumber: firebaseUser.phoneNumber || null,
+                        role: 'hero'
+                    };
+                }
+            } catch (err) {
+                console.warn('Profile fetch failed, defaulting to hero role');
+                user = {
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email,
+                    displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                    phoneNumber: firebaseUser.phoneNumber || null,
+                    role: 'hero'
+                };
+            }
 
             setAuthProvider('google');
             localStorage.setItem('authToken', 'firebase-hybrid-token');

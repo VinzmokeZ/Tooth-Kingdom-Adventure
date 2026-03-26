@@ -44,7 +44,9 @@ const AppContent = () => {
   const { currentUser, loading: authLoading } = useAuth();
   const [hasCheckedAuth, setHasCheckedAuth] = useState(false);
   const [lastSyncId, setLastSyncId] = useState<string | null>(null);
-  const [showChibiGuide, setShowChibiGuide] = useState(true);
+  const [showChibiGuide, setShowChibiGuide] = useState(() => {
+    return localStorage.getItem('chibi_guide_completed') !== 'true';
+  });
   const [selectedStudent, setSelectedStudent] = useState<any>(null);
 
   const { playSound } = useSound();
@@ -226,7 +228,10 @@ const AppContent = () => {
       {showChibiGuide && currentScreen === 'dashboard' && (
         <ChibiGuide
           userName={userData.name || 'Hero'}
-          onComplete={() => setShowChibiGuide(false)}
+          onComplete={() => {
+            setShowChibiGuide(false);
+            localStorage.setItem('chibi_guide_completed', 'true');
+          }}
         />
       )}
 
