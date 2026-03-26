@@ -383,8 +383,13 @@ export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTub
 
         const audio = new Audio(`data:audio/mp3;base64,${base64Audio}`);
         audioRef.current = audio;
+        
+        // v5.0 Senior Fix: Ensure mouth moves when cloud audio plays
+        audio.onplay = () => { isSpeakingRef.current = true; };
+        audio.onended = () => { isSpeakingRef.current = false; };
+        
         initAudioAnalyser(audio);
-        audio.play();
+        audio.play().catch(e => log(`Audio Response Play Fail: ${e.message}`));
     };
 
     // Expose methods to parent via ref (Imperial Unlock)
@@ -434,7 +439,7 @@ export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTub
             faceLandmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-                    delegate: "CPU"
+                    delegate: "GPU"
                 },
                 outputFaceBlendshapes: true,
                 runningMode: "VIDEO"
@@ -442,7 +447,7 @@ export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTub
             handLandmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
                 baseOptions: {
                     modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-                    delegate: "CPU"
+                    delegate: "GPU"
                 },
                 runningMode: "VIDEO"
             });
@@ -567,8 +572,28 @@ export const VTuberBrushingQuest = React.memo(forwardRef<VTuberQuestHandle, VTub
                             } else {
                                 core.setParameterValueById('ParamMouthOpenY', faceRig.mouth.y);
                             }
+
+                            // v5.0 Senior Fix: Subtle default breath if no other motion is happening
+                            const breath = (Math.sin(performance.now() / 1500) + 1) / 2 * 0.2;
+                            core.setParameterValueById('ParamBodyAngleX', (faceRig.head.degrees.y || 0) + (Math.sin(performance.now() / 2000) * 2));
                         }
                     }
+                } else if (modelRef.current?.internalModel?.coreModel) {
+                    // FALLBACK: If no face detected, still do breathing and mouth-idle
+                    const core = modelRef.current.internalModel.coreModel;
+                    const isTalking = (audioRef.current && !audioRef.current.paused) || isSpeakingRef.current;
+                    
+                    if (isTalking) {
+                        const lipSyncValue = (Math.sin(performance.now() / 80) + 1) / 2 * 0.85;
+                        core.setParameterValueById('ParamMouthOpenY', lipSyncValue);
+                    } else {
+                        core.setParameterValueById('ParamMouthOpenY', 0);
+                    }
+                    
+                    // Idle Breath Animation
+                    core.setParameterValueById('ParamAngleX', Math.sin(performance.now() / 3000) * 5);
+                    core.setParameterValueById('ParamBodyAngleX', Math.sin(performance.now() / 2000) * 3);
+                    core.setParameterValueById('ParamBreath', (Math.sin(performance.now() / 1500) + 1) / 2);
                 }
 
                 if (handResult.landmarks && handResult.landmarks.length > 0) {
