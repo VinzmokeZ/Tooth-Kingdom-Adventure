@@ -83,28 +83,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 throw new Error(data.detail || 'Sync failed');
             }
 
-            // v5.0 Senior Fix: Fetch the ACTUAL role from the database after sync
+            // v5.0 Senior Fix: Fetch the ACTUAL role from the database after sync using CapacitorHttp (Android Safe)
             try {
-                const profileRes = await fetch(`${API_URL}/users/${firebaseUser.uid}`);
-                if (profileRes.ok) {
-                    const profileData = await profileRes.json();
-                    if (profileData.success && profileData.user) {
-                        user = {
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email,
-                            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-                            phoneNumber: firebaseUser.phoneNumber || null,
-                            role: profileData.user.role || 'hero'
-                        };
-                    } else {
-                        user = {
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email,
-                            displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-                            phoneNumber: firebaseUser.phoneNumber || null,
-                            role: 'hero'
-                        };
-                    }
+                const options = {
+                    url: `${API_URL}/users/${firebaseUser.uid}`,
+                    headers: { 'Content-Type': 'application/json' }
+                };
+                const profileRes: HttpResponse = await CapacitorHttp.get(options);
+                const profileData = profileRes.data;
+
+                if (profileData.success && profileData.user) {
+                    user = {
+                        uid: firebaseUser.uid,
+                        email: firebaseUser.email,
+                        displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
+                        phoneNumber: firebaseUser.phoneNumber || null,
+                        role: profileData.user.role || 'hero'
+                    };
                 } else {
                     user = {
                         uid: firebaseUser.uid,
